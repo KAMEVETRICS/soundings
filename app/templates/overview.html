@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block main %}
+  {% if not data.ok %}
+    <p class="banner warn">{{ data.error }}</p>
+  {% else %}
+    <section class="hero">
+      <h1>Market<br /><span>overview</span></h1>
+    </section>
+
+    <div class="section-head">
+      <h3>Market overview</h3>
+      <span>Live RYO data</span>
+    </div>
+    <section class="kpis" aria-label="Market overview">
+      <article class="card">
+        <label>Total 24h volume</label>
+        <p class="val">{{ data.volume_24h | usd }}</p>
+        <p class="hint">{{ data.overview.regime or "" }}</p>
+      </article>
+      <article class="card alt">
+        <label>Total market cap</label>
+        <p class="val glow">{{ data.market_cap | usd }}</p>
+        <p class="hint mute">{{ data.overview.mcap_change_24h | pct }} 24h</p>
+      </article>
+      <article class="card">
+        <label>Most active in scan</label>
+        <p class="val">{{ data.most_active.symbol if data.most_active else "—" }}</p>
+        <p class="hint">{{ data.most_active.volume | usd if data.most_active else "" }} vol</p>
+      </article>
+      <article class="card alt">
+        <label>Market breadth</label>
+        <div class="pair">
+          <p class="val up">{{ data.gainers | length }}</p>
+          <p class="val down">{{ data.losers | length }}</p>
+        </div>
+        <p class="hint mute">gainers / losers</p>
+      </article>
+    </section>
+
+    {% if data.insights %}
+    <div class="section-head"><h3>Insights</h3></div>
+    <section class="insights">
+      {% for card in data.insights %}
+      <article class="insight {{ card.tone }}">
+        <label>{{ card.title }}</label>
+        <p>{{ card.body }}</p>
+      </article>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="chart-panel">
+      <div class="chart-head">
+        <div>
+          <h2>Volume vs market cap</h2>
+          <p>Top names by 24h volume</p>
+        </div>
+        <div class="legend">
+          <span><i class="swatch solid"></i> Volume 24h</span>
+          <span><i class="swatch hollow"></i> Market cap</span>
+        </div>
+      </div>
+      <div class="bars" role="img" aria-label="Volume versus market cap for top scanned assets">
+        {% for row in data.chart %}
+        <div class="col">
+          <div class="pair-bars">
+            <div class="bar vol" style="height: {{ row.vol_pct }}%" title="Vol {{ row.volume | usd }}"></div>
+            <div class="bar cap" style="height: {{ row.cap_pct }}%" title="Cap {{ row.market_cap | usd }}"></div>
+          </div>
+          <span>{{ row.symbol }}</span>
+        </div>
+        {% else %}
+        <p>No scan rows.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="split">
+      <div>
+        <div class="section-head"><h3>Advancing</h3></div>
+        <table>
+          <thead><tr><th>Ticker</th><th>Name</th><th>24h</th></tr></thead>
+          <tbody>
+            {% for row in data.gainers %}
+            <tr>
+              <td><a href="/token/{{ row.symbol }}">{{ row.symbol }}</a></td>
+              <td>{{ row.name }}</td>
+              <td class="up">{{ row.change_24h | pct }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3">No gainers.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="section-head"><h3>Declining</h3></div>
+        <table>
+          <thead><tr><th>Ticker</th><th>Name</th><th>24h</th></tr></thead>
+          <tbody>
+            {% for row in data.losers %}
+            <tr>
+              <td><a href="/token/{{ row.symbol }}">{{ row.symbol }}</a></td>
+              <td>{{ row.name }}</td>
+              <td class="down">{{ row.change_24h | pct }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3">No losers.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

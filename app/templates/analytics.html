@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block main %}
+  <section class="hero">
+    <h1>Crowd vs tape<br /><span>Fear &amp; Greed vs funding</span></h1>
+  </section>
+
+  {% if not data.ok %}
+    <p class="banner warn">{{ data.error }}</p>
+  {% else %}
+    {% set s = data.stress %}
+    <section class="kpis" aria-label="Positioning stress">
+      <article class="card">
+        <label>Positioning stress · S</label>
+        <p class="val">{% if s.S is not none %}{{ "%.2f"|format(s.S) }}{% else %}—{% endif %}</p>
+        <p class="hint">{{ s.reading }} · 0.5 F&amp;G + 0.5 funding</p>
+        <div class="dial" role="meter"
+             aria-valuemin="-2" aria-valuemax="2"
+             aria-valuenow="{% if s.S is not none %}{{ '%.2f'|format(s.S) }}{% endif %}"
+             aria-label="Positioning stress from capitulation to froth">
+          <div class="dial-track">
+            {% if s.needle_pct is not none %}
+            <span class="dial-needle" style="left: {{ s.needle_pct }}%"></span>
+            {% endif %}
+          </div>
+          <div class="dial-labels"><span>capitulation</span><span>neutral</span><span>froth</span></div>
+        </div>
+      </article>
+      <article class="card alt">
+        <label>Gap</label>
+        <p class="val" style="font-size:1.15rem">{{ s.gap.label }}</p>
+        <p class="hint mute">{{ s.crowd.label }} crowd · {{ s.tape.label }} tape</p>
+      </article>
+      <article class="card">
+        <label>Market regime</label>
+        <p class="val" style="font-size:1.2rem">{{ data.overview.regime or "—" }}</p>
+        <p class="hint mute">{{ data.sentiment.regime or "" }}
+          · altseason {{ data.sentiment.altseason.phase or "—" }}</p>
+      </article>
+      <article class="card alt">
+        <label>As of</label>
+        <p class="val" style="font-size:1.05rem">{{ data.as_of or "—" }}</p>
+        <p class="hint mute">weights 0.5 F&amp;G · 0.5 funding</p>
+      </article>
+    </section>
+
+    <section class="split">
+      <article class="surface-card">
+        <h2 class="page">Surface · what the crowd feels</h2>
+        <ul class="gates">
+          <li>Fear &amp; Greed
+            <strong>{{ s.crowd.fear_greed if s.crowd.fear_greed is not none else "—" }}</strong>
+            {{ s.crowd.fear_greed_label or "" }}
+          </li>
+          <li>7-day change
+            {% if s.crowd.fear_greed_delta is not none %}{{ s.crowd.fear_greed_delta | round(0) }} pts{% else %}—{% endif %}
+            · {{ "7d shift" if s.crowd.material_shift else "7d stable" }}
+          </li>
+          <li>7d ago {{ s.crowd.fear_greed_7d_ago if s.crowd.fear_greed_7d_ago is not none else "—" }}</li>
+        </ul>
+      </article>
+      <article class="surface-card">
+        <h2 class="page">Tape · how it is positioned</h2>
+        <ul class="gates">
+          <li>BTC funding crowding <strong>{{ data.sentiment.funding.crowding or "—" }}</strong>
+            · 90d pctl
+            {% if data.sentiment.funding.percentile_90d is not none %}{{ "%.0f"|format(data.sentiment.funding.percentile_90d) }}{% else %}—{% endif %}
+          </li>
+          <li>7d mean
+            {% if data.sentiment.funding.mean_7d_bps is not none %}{{ "%.3f"|format(data.sentiment.funding.mean_7d_bps) }} bps{% else %}—{% endif %}
+            · WoW
+            {% if data.sentiment.funding.wow_pct is not none %}{{ "%.1f"|format(data.sentiment.funding.wow_pct) }}%{% else %}—{% endif %}
+          </li>
+          <li>BTC liquidations {{ data.sentiment.liquidation.dominant or "—" }}
+            · {{ data.sentiment.liquidation.total_usd | usd }}
+            · long share
+            {% if data.sentiment.liquidation.long_share_pct is not none %}{{ "%.0f"|format(data.sentiment.liquidation.long_share_pct) }}%{% else %}—{% endif %}
+          </li>
+          <li>BTC dominance
+            {% if s.tape.btc_dominance is not none %}{{ "%.1f"|format(s.tape.btc_dominance) }}%{% else %}—{% endif %}
+            · rest
+            {% if data.rest_dominance is not none %}{{ "%.1f"|format(data.rest_dominance) }}%{% else %}—{% endif %}
+          </li>
+        </ul>
+      </article>
+    </section>
+
+    <p class="gap-banner">{{ s.gap.body }}</p>
+
+    <div class="section-head"><h3>Components of S</h3></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Component</th><th>Raw</th><th>Mapped z</th><th>Weight</th><th>In S</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in s.components %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td>{% if row.raw is not none %}{{ "%.2f"|format(row.raw) }}{% else %}—{% endif %}</td>
+          <td>{% if row.z is not none %}{{ "%+.2f"|format(row.z) }}{% else %}—{% endif %}</td>
+          <td>{{ row.weight }}</td>
+          <td>{{ "yes" if row.in_s else "readout" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <section class="kpis">
+      <article class="card">
+        <label>Breadth</label>
+        <div class="pair">
+          <p class="val up">{{ data.overview.advancing if data.overview.advancing is not none else "—" }}</p>
+          <p class="val down">{{ data.overview.declining if data.overview.declining is not none else "—" }}</p>
+        </div>
+        <p class="hint mute">advancing / declining · n={{ data.overview.universe or "—" }}</p>
+      </article>
+      <article class="card alt">
+        <label>Turnover</label>
+        <p class="val">{% if data.turnover is not none %}{{ "%.2f"|format(data.turnover * 100) }}%{% else %}—{% endif %}</p>
+        <p class="hint mute">24h volume / market cap</p>
+      </article>
+      <article class="card">
+        <label>Mcap 24h</label>
+        <p class="val {{ 'up' if (data.overview.mcap_change_24h or 0) >= 0 else 'down' }}">{{ data.overview.mcap_change_24h | pct }}</p>
+        <p class="hint mute">24h</p>
+      </article>
+      <article class="card alt">
+        <label>BTC RSI(14)</label>
+        <p class="val">{% if data.btc.rsi_14 is not none %}{{ "%.1f"|format(data.btc.rsi_14) }}{% else %}—{% endif %}</p>
+        <p class="hint mute">{{ data.btc.trend or "" }} · 30d {{ data.btc.change_30d | pct }}</p>
+      </article>
+    </section>
+
+    {% if data.insights %}
+    <div class="section-head"><h3>Insights</h3></div>
+    <section class="insights">
+      {% for card in data.insights %}
+      <article class="insight {{ card.tone }}">
+        <label>{{ card.title }}</label>
+        <p>{{ card.body }}</p>
+      </article>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if data.second_book %}
+    <div class="section-head"><h3>TrueNorth</h3><span>Fear &amp; Greed / MVRV</span></div>
+    <section class="kpis">
+      <article class="card">
+        <label>Fear &amp; Greed</label>
+        <p class="val">{{ data.second_book.fear_greed if data.second_book.fear_greed is not none else "—" }}</p>
+        <p class="hint mute">{{ data.second_book.status or "" }}</p>
+      </article>
+      <article class="card alt">
+        <label>MVRV z</label>
+        <p class="val">{% if data.second_book.mvrv_z is not none %}{{ "%.2f"|format(data.second_book.mvrv_z) }}{% else %}—{% endif %}</p>
+
+      </article>
+      <article class="card">
+        <label>MVRV ratio</label>
+        <p class="val">{% if data.second_book.mvrv_ratio is not none %}{{ "%.2f"|format(data.second_book.mvrv_ratio) }}{% else %}—{% endif %}</p>
+      </article>
+      {% if data.second_book.notes %}
+      <article class="card alt">
+        <label>Notes</label>
+        <p class="val" style="font-size:0.95rem">{{ data.second_book.notes | join("; ") }}</p>
+      </article>
+      {% endif %}
+    </section>
+    {% endif %}
+
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ data.symbol or "Token" }}{% endblock %}
+{% block main %}
+  {% if not data.ok %}
+    <p class="banner warn">{{ data.error }}</p>
+  {% else %}
+    <p class="lede">{{ data.token.headline or data.symbol }}{% if data.token.rank %} · rank {{ data.token.rank | int }}{% endif %}</p>
+    <section class="kpis">
+      <article class="card"><label>Price</label><p class="val">{{ data.token.price | money }}</p></article>
+      <article class="card alt"><label>RSI(14)</label><p class="val">{{ data.token.rsi_14 if data.token.rsi_14 is not none else "—" }}</p></article>
+      <article class="card"><label>Trend</label><p class="val">{{ data.token.trend or "—" }}</p></article>
+      <article class="card alt"><label>Verdict</label><p class="val" style="font-size:1.1rem">{{ data.token.verdict or "—" }}</p></article>
+    </section>
+    <div class="horizons">
+      <article><label>1h</label><p class="{{ 'up' if (data.token.change_1h or 0) >= 0 else 'down' }}">{{ data.token.change_1h | pct }}</p></article>
+      <article><label>24h</label><p class="{{ 'up' if (data.token.change_24h or 0) >= 0 else 'down' }}">{{ data.token.change_24h | pct }}</p></article>
+      <article><label>7d</label><p class="{{ 'up' if (data.token.change_7d or 0) >= 0 else 'down' }}">{{ data.token.change_7d | pct }}</p></article>
+      <article><label>30d</label><p class="{{ 'up' if (data.token.change_30d or 0) >= 0 else 'down' }}">{{ data.token.change_30d | pct }}</p></article>
+    </div>
+    {% if data.insights %}
+    <section class="insights">
+      {% for card in data.insights %}
+      <article class="insight {{ card.tone }}"><label>{{ card.title }}</label><p>{{ card.body }}</p></article>
+      {% endfor %}
+    </section>
+    {% endif %}
+    <section class="split">
+      <div>
+        <h2 class="page">Structure</h2>
+        <ul class="gates">
+          <li>Mcap {{ data.token.mcap | usd }} · FDV {{ data.token.fdv | usd }}</li>
+          <li>Turnover {% if data.token.turnover is not none %}{{ "%.2f"|format(data.token.turnover) }}×{% else %}—{% endif %}
+            · ATR {% if data.token.atr_14_pct is not none %}{{ "%.2f"|format(data.token.atr_14_pct) }}%{% else %}—{% endif %}</li>
+          {% if data.structure and data.structure.dominance_pct is not none %}
+          <li>Dominance {{ "%.2f"|format(data.structure.dominance_pct) }}%
+            {% if data.structure.circulating_supply is not none %}
+            · circulating {{ "%.0f"|format(data.structure.circulating_supply) }}
+            {% endif %}
+          </li>
+          {% endif %}
+          {% if data.token.narrative %}<li>{{ data.token.narrative }}</li>{% endif %}
+        </ul>
+        {% if data.token.catalysts %}<p>Catalysts: {{ data.token.catalysts | join("; ") }}</p>{% endif %}
+        {% if data.token.risks %}<p>Risks: {{ data.token.risks | join("; ") }}</p>{% endif %}
+      </div>
+      <div>
+        <h2 class="page">Deep pack</h2>
+        <p>{{ data.deep.headline or "—" }}</p>
+        <p>Confluence {{ data.deep.get("confluence_state") or "—" }}
+          {% if data.deep.get("confluence_score") is not none %}({{ "%.2f"|format(data.deep.get("confluence_score")) }}){% endif %}</p>
+        <ul class="gates">
+          {% for g in data.deep.gates or [] %}
+          <li>{{ "pass" if g.passed else "fail" }} · {{ g.name }}</li>
+          {% else %}
+          <li>—</li>
+          {% endfor %}
+        </ul>
+        {% if data.deep.what_changes_it %}<p>What changes it: {{ data.deep.what_changes_it }}</p>{% endif %}
+        {% if data.deep.plan and data.deep.plan is mapping %}
+          <p>Entry {{ data.deep.plan.entry | money }} · stop {{ data.deep.plan.stop | money }}
+            {% if data.deep.plan.targets %} · targets {{ data.deep.plan.targets[0] | money }}{% endif %}</p>
+        {% endif %}
+      </div>
+    </section>
+    <p><a href="/screener">← Screener</a></p>
+  {% endif %}
+{% endblock %}

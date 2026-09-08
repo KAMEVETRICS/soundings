@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Soundings{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Space+Grotesk:wght@500;700&family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="ico">terminal</span>
+        <div>
+          SOUNDINGS
+          <small>RYO analytics</small>
+        </div>
+      </div>
+      <nav aria-label="Primary">
+        <a href="/" class="{{ 'on' if nav=='overview' else '' }}"><span class="ico">dashboard</span> Overview</a>
+        <a href="/analytics" class="{{ 'on' if nav=='analytics' else '' }}"><span class="ico">monitoring</span> Analytics</a>
+        <a href="/screener" class="{{ 'on' if nav=='screener' else '' }}"><span class="ico">search</span> Screener</a>
+        <a href="/sentiment" class="{{ 'on' if nav=='sentiment' else '' }}"><span class="ico">trending_up</span> Sentiment</a>
+        <a href="/compare" class="{{ 'on' if nav=='compare' else '' }}"><span class="ico">compare_arrows</span> Compare</a>
+        <a href="/insights" class="{{ 'on' if nav=='insights' else '' }}"><span class="ico">public</span> Insights</a>
+        <a href="/claw" class="{{ 'on' if nav=='claw' else '' }}"><span class="ico">smart_toy</span> Claw</a>
+      </nav>
+      <div class="sys"><span class="dot"></span> {{ "systems operational" if setup.ryo else "RYO key missing" }}</div>
+    </aside>
+    <div class="content" id="main">
+      {% block main %}{% endblock %}
+      <footer class="slim"><a href="/api">API</a></footer>
+    </div>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

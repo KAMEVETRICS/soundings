@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/cache/*
+data/receipts/*
+!data/cache/.gitkeep
+!data/receipts/.gitkeep
+.DS_Store
+Thumbs.db
