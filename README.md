@@ -2,7 +2,7 @@
 
 A hydrographic survey of live crypto markets.
 
-Built for **RYO-CHAN Hackathon 2026 · Track 2 Dashboards & Interfaces** (data analytics). Inspired by the Datatides terminal layout and by [Undertow’s analytics desk](https://under-tow.vercel.app/analytics): **what the crowd feels versus how the tape is positioned**.
+Built for **RYO-CHAN Hackathon 2026 · Track 2 Dashboards & Interfaces** (data analytics). Inspired by the [Datatides terminal layout](https://github.com/KAMEVETRICS/Datatides) and by [Undertow’s analytics desk](https://under-tow.vercel.app/analytics): **what the crowd feels versus how the tape is positioned**.
 
 Datatides watches Pacifica perps and wallets. Undertow backtests a rolling z-score of Fear & Greed vs funding. Soundings cannot copy either pipe: RYO tools do not accept wallet addresses, do not publish a 90-day OI history, and cannot trade. We survey **live measurements** from RYO’s six research tools, then derive the gap. Missing fields stay blank.
 
