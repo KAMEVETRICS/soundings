@@ -1,28 +1,92 @@
 # Soundings — Project Submission
 
-Copy these answers into the official Project Submission Form.
+**Track: Track 2 Dashboards & Interfaces (data analytics).** Not Track 1. Not Track 3.
 
-## Project
+Organizer private repo (this is what `/apply` wants):
 
-- **Name:** Soundings
-- **Tagline:** What the crowd feels versus how the tape is positioned.
-- **Tracks entered:** Track 2 Dashboards & Interfaces (data analytics)
-- **One-line user:** A trader who wants a 30-second read of Fear & Greed against BTC funding, liquidations, breadth and dominance — without a fake order book.
-- **Decision improved:** Is surface greed confirmed by positioning, or is the crowd hotter than the tape?
+- URL: https://github.com/RYO-Digital/ryochan-hackathon_repository-142
+- **Repository name for Discord `/apply`:** `ryochan-hackathon_repository-142`
 
-## What it does
+Public showcase: https://github.com/KAMEVETRICS/soundings
 
-Soundings is a read-only market terminal on RYO’s six research tools.
+The organizer repo is private, empty, and this GitHub account can push to `main`. Nothing has been pushed (per “do not push”).
 
-- **Overview** — regime, 24h volume, market cap, breadth, volume vs cap.
-- **Analytics** — positioning-stress **S** (0.5 Fear & Greed + 0.5 BTC funding percentile). Gap label. Component table. Optional TrueNorth F&G / MVRV as a second book.
-- **Screener** — `scan_market` ranked by 24h move, turnover, spike flags.
-- **Token** — `analyze_token` + `deep_analysis` in parallel: horizons, RSI, ATR, confluence gates.
-- **Sentiment** — 7-day F&G, BTC funding crowding, liquidations, altseason.
-- **Compare** — `compare_tokens` factor scores.
-- **Claw** — answers only from the live evidence pack.
+---
 
-Missing fields stay blank. Last-good RYO cache is labelled stale. Open interest is not on this book.
+## Still yours
+
+1. **Demo video.** Record the script below. Upload to Google Drive / Dropbox / OneDrive. Share so organizers can open it. If the file is locked, put the password next to the link. Then set `DEMO_VIDEO` (and `DEMO_VIDEO_PASSWORD` if needed) in `scripts/fill_submission_form.py` and rerun:
+   ```powershell
+   ..\.venv\Scripts\python.exe scripts\fill_submission_form.py
+   ```
+2. **Official Discord PDF.** The blank lives in `#participant-setup-process` (`1538781340093382707`). This session cannot download Discord attachments. The GitHub file other teams used was **Harrie's filled Hanko form**, not a blank. `RYOCHAN-Project-Submission-Form.pdf` here is the same A4 layout, filled for Soundings. If you have the organizer file, copy these answers onto that file instead.
+3. **Push** final code, this PDF, and docs to **main** of `RYO-Digital/ryochan-hackathon_repository-142`. Do not commit `.env` or `data/cache/*.json`. Say when to push.
+4. **Discord `/apply`:**
+   - Go to `#buidl` (`1538785340880461905`)
+   - Type `/apply` → **Hackathon Submission**
+   - Paste exactly: `ryochan-hackathon_repository-142`
+   - Wait for results in `1535192398437818388`
+
+---
+
+## Form answers (on the PDF)
+
+| Field | Value |
+| --- | --- |
+| Total Members | 1 |
+| Name | kongclaves |
+| Role | Solo builder |
+| Email | kcfreshkl@gmail.com |
+| Project | Soundings |
+| Track | Track 2 (Dashboards & Interfaces) |
+| Problem | Fear & Greed can disagree with BTC funding. RYO does not publish wallets or open interest, so those prints cannot be shown. |
+| Solution | Read-only terminal on RYO's six research tools. Analytics reports crowd vs tape as S = 0.5 Fear & Greed + 0.5 BTC funding percentile. Missing fields stay blank. |
+| Key Features | Overview, Analytics (S and gap), Screener, Token, Sentiment, Compare, Claw, JSON /api. |
+| Target Users | Traders who want a 30-second crowd-vs-tape read. |
+| Scope | Live RYO MCP six tools. Optional TrueNorth F&G / MVRV. No orders. |
+| Limitations | No wallet lookup, no open interest. Runs locally on port 8001. |
+| Frontend | Jinja2, CSS, vanilla JS |
+| Backend | Python 3.12, FastAPI, uvicorn, httpx |
+| AI Model(s) | None on market desks. Claw optional: OpenRouter x-ai/grok-4.3 |
+| Other | python-dotenv; optional TrueNorth MCP |
+| Github Repository | https://github.com/RYO-Digital/ryochan-hackathon_repository-142 |
+| Demo Video | *(blank until you set DEMO_VIDEO)* |
+| Documentation | README.md |
+| How to run | http://127.0.0.1:8001/analytics |
+| Prerequisites | Python 3.12, pip, RYO_MCP_KEY |
+| Installation | Clone; venv; pip install -r requirements.txt; copy .env.example to .env |
+| Environment Variables | RYO_MCP_URL, RYO_MCP_KEY. Optional: OPENROUTER_API_KEY, TRUENORTH_MCP_URL, TRUENORTH_MCP_TOKEN |
+| Build Command | None |
+| Run Command | `uvicorn app.main:app --host 127.0.0.1 --port 8001` |
+| Test Command | `python scripts/probe_endpoints.py` |
+| Test Account(s) | None |
+
+### Environment
+
+See `.env.example`. Never commit a live key.
+
+```
+RYO_MCP_URL=https://app-ryochan.com/api/mcp
+RYO_MCP_KEY=
+OPENROUTER_API_KEY=
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+CHAMBER_MODEL=x-ai/grok-4.3
+TRUENORTH_MCP_URL=https://mcp.true-north.xyz/mcp
+TRUENORTH_MCP_TOKEN=
+RYO_CACHE_TTL=60
+```
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload --reload-dir app
+```
+
+Open http://127.0.0.1:8001/analytics
+
+---
 
 ## How it uses RYO
 
@@ -35,7 +99,9 @@ Missing fields stay blank. Last-good RYO cache is labelled stale. Open interest 
 | `deep_analysis` | Token confluence / ATR plan |
 | `compare_tokens` | Compare |
 
-Soundings does not send orders. Optional TrueNorth is F&G / MVRV only.
+Soundings does not send orders.
+
+---
 
 ## Demo script (for the video)
 
@@ -48,27 +114,7 @@ Soundings does not send orders. Optional TrueNorth is F&G / MVRV only.
 7. `/api/overview` and `/api/analytics` — same desks as JSON.
 8. `/claw` — “Is the crowd hotter than BTC funding?”
 
-## Environment
-
-See `.env.example`. Never commit a live key.
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-copy .env.example .env
-uvicorn app.main:app --host 127.0.0.1 --port 8001
-```
-
-Open http://127.0.0.1:8001/analytics
-
-## Repo
-
-https://github.com/KAMEVETRICS/soundings
-
-## Team
-
-Fill Discord IDs and GitHub usernames from the organiser DM.
+---
 
 ## Social post (optional award)
 

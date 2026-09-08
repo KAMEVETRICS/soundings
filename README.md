@@ -69,3 +69,18 @@ Undertow’s frozen weights are `0.5` Fear & Greed + `0.5` funding, stretch `0`.
 6. Compare — `SOL, ETH, BTC`.
 7. `/api/analytics` — same desk as JSON.
 8. Claw — "Is the crowd hotter than BTC funding?"
+
+## How it works
+
+1. FastAPI calls RYO MCP REST (`/tools`, then the six research tools) with `RYO_MCP_KEY`.
+2. Successful payloads sit in a memory + disk TTL cache (`RYO_CACHE_TTL`, default 60s). Failures keep last-good data and mark it stale. Missing fields stay blank.
+3. One market pack (`_fetch_market` → `_assemble_market`) feeds Overview, Analytics, Sentiment, and Insights. Token pages gather `analyze_token` + `deep_analysis`. Compare is `compare_tokens`.
+4. Analytics derives **S** and the gap label from that pack. Optional TrueNorth Fear & Greed / MVRV is a second book, not a substitute for RYO.
+5. Claw may call OpenRouter/xAI and is only allowed to talk about the live evidence pack.
+
+## Submission
+
+**Track 2 (Dashboards & Interfaces).** Form: `RYOCHAN-Project-Submission-Form.pdf`. Copy-paste answers and remaining Discord steps: `SUBMISSION.md`.
+
+- Organizer repo (Discord `/apply` name): [`ryochan-hackathon_repository-142`](https://github.com/RYO-Digital/ryochan-hackathon_repository-142)
+- Public showcase: https://github.com/KAMEVETRICS/soundings

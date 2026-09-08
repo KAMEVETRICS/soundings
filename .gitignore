@@ -9,3 +9,7 @@ data/receipts/*
 !data/receipts/.gitkeep
 .DS_Store
 Thumbs.db
+scripts/form/original_page_*.png
+scripts/form/verify/
+scripts/form/banner_crop.png
+*.next.pdf
