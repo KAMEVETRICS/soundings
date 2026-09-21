@@ -39,7 +39,7 @@ The organizer repo is private, empty, and this GitHub account can push to `main`
 | Key Features | Overview, Analytics (S and gap), Screener, Token, Sentiment, Compare, Claw, JSON /api. |
 | Target Users | Traders who want a 30-second crowd-vs-tape read. |
 | Scope | Live RYO MCP six tools. Optional TrueNorth F&G / MVRV. No orders. |
-| Limitations | No wallet lookup, no open interest. Runs locally on port 8001. |
+| Limitations | No wallet lookup, no open interest. |
 | Frontend | Jinja2, CSS, vanilla JS |
 | Backend | Python 3.12, FastAPI, uvicorn, httpx |
 | AI Model(s) | None on market desks. Claw optional: OpenRouter x-ai/grok-4.3 |
@@ -47,7 +47,7 @@ The organizer repo is private, empty, and this GitHub account can push to `main`
 | Github Repository | https://github.com/RYO-Digital/ryochan-hackathon_repository-142 |
 | Demo Video | *(blank until you set DEMO_VIDEO)* |
 | Documentation | README.md |
-| How to run | http://127.0.0.1:8001/analytics |
+| How to run | https://soundings.online/analytics |
 | Prerequisites | Python 3.12, pip, RYO_MCP_KEY |
 | Installation | Clone; venv; pip install -r requirements.txt; copy .env.example to .env |
 | Environment Variables | RYO_MCP_URL, RYO_MCP_KEY. Optional: OPENROUTER_API_KEY, TRUENORTH_MCP_URL, TRUENORTH_MCP_TOKEN |

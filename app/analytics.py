@@ -55,7 +55,7 @@ def _tape_label(crowding: str | None, percentile: float | None) -> str:
 
 
 def _gap(crowd: str, tape: str) -> dict[str, str]:
-    """The Undertow thesis: surface feeling versus positioning underneath."""
+    """Surface Fear & Greed versus BTC funding underneath."""
     if crowd == "greed" and tape in {"normal", "uncrowded"}:
         return {
             "code": "crowd_hotter_than_tape",
@@ -104,11 +104,9 @@ def positioning_stress(
     sentiment: dict[str, Any] | None,
     btc: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Live positioning-stress pack.
+    """Live positioning-stress pack from this RYO snapshot.
 
-    Same shape as Undertow (surface F&G vs funding percentile, stretch shown at weight 0)
-    but computed from this RYO snapshot. Not a rolling 90-day z, not a trade, not OI.
-    Frozen weights match Undertow's published skill params: 0.5 F&G, 0.5 funding, 0 stretch.
+    Weights: 0.5 Fear & Greed, 0.5 funding, 0 stretch. Not a rolling z, not a trade, not OI.
     """
     overview = overview or {}
     sentiment = sentiment or {}
@@ -176,7 +174,7 @@ def positioning_stress(
             "z": z_stretch,
             "weight": weights["w_stretch"],
             "in_s": False,
-            "note": "Shown only. Undertow froze stretch weight at 0; we do the same.",
+            "note": "Shown only. Stretch weight is 0.",
         },
         {
             "key": "liquidations",

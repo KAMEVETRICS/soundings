@@ -24,7 +24,7 @@ def _llm() -> OpenAI | None:
     return OpenAI(
         api_key=config.OPENROUTER_API_KEY,
         base_url=config.OPENROUTER_BASE_URL,
-        default_headers={"HTTP-Referer": "http://127.0.0.1:8001", "X-Title": "Soundings"},
+        default_headers={"HTTP-Referer": "https://soundings.online", "X-Title": "Soundings"},
     )
 
 

@@ -267,7 +267,7 @@ def build() -> Path:
                 ),
                 (
                     "Limitations",
-                    "No wallet lookup, no open interest. Runs locally on port 8001.",
+                    "No wallet lookup, no open interest.",
                 ),
             ],
             styles,
@@ -315,7 +315,7 @@ def build() -> Path:
             [
                 (
                     "How to run the Project",
-                    "http://127.0.0.1:8001/analytics",
+                    "https://soundings.online/analytics",
                 ),
                 ("Prerequisites", "Python 3.12, pip, RYO_MCP_KEY"),
                 (

@@ -1,10 +1,10 @@
 # Soundings
 
-A hydrographic survey of live crypto markets.
+Read-only market terminal on RYO's six research tools.
 
-Built for **RYO-CHAN Hackathon 2026 · Track 2 Dashboards & Interfaces** (data analytics). Inspired by the [Datatides terminal layout](https://github.com/KAMEVETRICS/Datatides) and by [Undertow’s analytics desk](https://under-tow.vercel.app/analytics): **what the crowd feels versus how the tape is positioned**.
+**RYO-CHAN Hackathon 2026 · Track 2 Dashboards & Interfaces.**
 
-Datatides watches Pacifica perps and wallets. Undertow backtests a rolling z-score of Fear & Greed vs funding. Soundings cannot copy either pipe: RYO tools do not accept wallet addresses, do not publish a 90-day OI history, and cannot trade. We survey **live measurements** from RYO’s six research tools, then derive the gap. Missing fields stay blank.
+The Analytics desk answers one question: is Fear & Greed confirmed by BTC funding, or is the crowd hotter than the tape? Positioning-stress **S** is `0.5` Fear & Greed + `0.5` BTC funding percentile on this live snapshot. Missing fields stay blank. RYO does not publish wallets or open interest, so those prints are not shown.
 
 | Page | What it is | Source |
 | --- | --- | --- |
@@ -19,18 +19,24 @@ Datatides watches Pacifica perps and wallets. Undertow backtests a rolling z-sco
 
 JSON for every desk lives under `/api`. OpenAPI explorer: `/docs`.
 
-No fabricated prints. Last-good cache is labelled stale. Open interest is **unavailable** on this book — we do not invent it.
+No fabricated prints. Last-good cache is labelled stale. Open interest is unavailable on this book; we do not invent it.
+
+Live: https://soundings.online/analytics
+
+## Stack
+
+Python 3.12, FastAPI, uvicorn, httpx, Jinja2, python-dotenv, openai (OpenRouter for Claw), pytest. Optional TrueNorth MCP for a second Fear & Greed / MVRV book.
 
 ## Run
 
-Uses the parent folder `.env` (same RYO / OpenRouter / TrueNorth keys as Chamber).
+Copy `.env.example` to `.env` and fill `RYO_MCP_KEY`. Optional: `OPENROUTER_API_KEY`, `TRUENORTH_MCP_TOKEN`.
 
 ```powershell
-cd "build 2"
-python -m uvicorn app.main:app --reload --reload-dir app --host 127.0.0.1 --port 8001
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
-
-Open http://127.0.0.1:8001/analytics
 
 ## Data endpoints
 
@@ -51,13 +57,13 @@ Slices of overview (totals, funding, gates, …) live **on the pack**, not as ex
 
 ## How S is built
 
-Undertow’s frozen weights are `0.5` Fear & Greed + `0.5` funding, stretch `0`. Soundings uses the same weights on **this snapshot**:
+Weights: `0.5` Fear & Greed + `0.5` funding. Stretch is shown at weight `0`.
 
-- Crowd: live map `(Fear & Greed − 50) / 25`
-- Tape: RYO’s own 90-day percentile of BTC 7-day funding, mapped the same way
-- Stretch: BTC RSI(14) is shown, weight 0
-- Liquidations / dominance / breadth sit beside S, not inside it
-- **Not** a rolling z-score, **not** a trade, **not** open interest
+- Crowd: live map `(Fear & Greed - 50) / 25`
+- Tape: RYO's 90-day percentile of BTC 7-day funding, mapped the same way
+- Stretch: BTC RSI(14), not inside S
+- Liquidations, dominance, and breadth sit beside S
+- Live snapshot, not a rolling z-score, not a trade, not open interest
 
 ## Demo script
 
@@ -80,7 +86,4 @@ Undertow’s frozen weights are `0.5` Fear & Greed + `0.5` funding, stretch `0`.
 
 ## Submission
 
-**Track 2 (Dashboards & Interfaces).** Form: `RYOCHAN-Project-Submission-Form.pdf`. Copy-paste answers and remaining Discord steps: `SUBMISSION.md`.
-
-- Organizer repo (Discord `/apply` name): [`ryochan-hackathon_repository-142`](https://github.com/RYO-Digital/ryochan-hackathon_repository-142)
-- Public showcase: https://github.com/KAMEVETRICS/soundings
+**Track 2 (Dashboards & Interfaces).** Form: `RYOCHAN-Project-Submission-Form.pdf`.
