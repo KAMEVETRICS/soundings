@@ -2,8 +2,7 @@
 {% block title %}Screener{% endblock %}
 {% block main %}
   <section class="hero">
-    <h1>Markets<br /><span>scan</span></h1>
-    <p>{{ data.headline or "Size is 24h volume. Color is 24h change. No open interest on this book." }}</p>
+    <h1>Markets</h1>
   </section>
   {% if not data.ok %}
     <p class="banner warn">{{ data.error }}</p>
@@ -33,7 +32,7 @@
 
     <div class="section-head">
       <h3>Heatmap</h3>
-      <span>tile size = volume · color = 24h %</span>
+      <span>size volume · color 24h</span>
     </div>
     <div class="heat" role="list">
       {% for row in data.rows %}

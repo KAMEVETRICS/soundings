@@ -5,26 +5,21 @@
     <p class="banner warn">{{ data.error }}</p>
   {% else %}
     <section class="hero">
-      <h1>Market<br /><span>overview</span></h1>
+      <h1>Overview</h1>
     </section>
-
-    <div class="section-head">
-      <h3>Market overview</h3>
-      <span>Live RYO data</span>
-    </div>
     <section class="kpis" aria-label="Market overview">
       <article class="card">
-        <label>Total 24h volume</label>
+        <label>24h volume</label>
         <p class="val">{{ data.volume_24h | usd }}</p>
         <p class="hint">{{ data.overview.regime or "" }}</p>
       </article>
       <article class="card alt">
-        <label>Total market cap</label>
+        <label>Market cap</label>
         <p class="val glow">{{ data.market_cap | usd }}</p>
         <p class="hint mute">{{ data.overview.mcap_change_24h | pct }} 24h</p>
       </article>
       <article class="card">
-        <label>Most active in scan</label>
+        <label>Most active</label>
         <p class="val">{{ data.most_active.symbol if data.most_active else "—" }}</p>
         <p class="hint">{{ data.most_active.volume | usd if data.most_active else "" }} vol</p>
       </article>
@@ -42,7 +37,7 @@
       <div class="chart-head">
         <div>
           <h2>Volume vs market cap</h2>
-          <p>Top names by 24h volume</p>
+          <p>24h volume vs cap</p>
         </div>
         <div class="legend">
           <span><i class="swatch solid"></i> Volume 24h</span>

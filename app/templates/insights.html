@@ -2,8 +2,7 @@
 {% block title %}Insights{% endblock %}
 {% block main %}
   <section class="hero">
-    <h1>What the crowd feels<br /><span>vs how the tape sits</span></h1>
-    <p>Derived from the same live snapshot. Analytics holds the numbers; this page is the prose.</p>
+    <h1>Insights</h1>
   </section>
   {% if not data.ok %}
     <p class="banner warn">{{ data.error }}</p>
@@ -17,12 +16,6 @@
       {% else %}
       <article class="insight mute"><label>Empty</label><p>No insights.</p></article>
       {% endfor %}
-    </section>
-    <section class="kpis">
-      <article class="card"><label>Turnover</label><p class="val">{% if data.turnover is not none %}{{ "%.2f"|format(data.turnover * 100) }}%{% else %}—{% endif %}</p></article>
-      <article class="card alt"><label>Rest of book</label><p class="val">{% if data.rest_dominance is not none %}{{ "%.1f"|format(data.rest_dominance) }}%{% else %}—{% endif %}</p></article>
-      <article class="card"><label>Mcap 24h</label><p class="val {{ 'up' if (data.overview.mcap_change_24h or 0) >= 0 else 'down' }}">{{ data.overview.mcap_change_24h | pct }}</p></article>
-      <article class="card alt"><label>Combined regime</label><p class="val" style="font-size:1.1rem">{{ data.sentiment.regime or data.overview.regime }}</p></article>
     </section>
   {% endif %}
 {% endblock %}

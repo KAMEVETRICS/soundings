@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Claw{% endblock %}
 {% block main %}
-  <p class="lede">Ask what changed.</p>
+  <section class="hero"><h1>Claw</h1></section>
   <form id="claw-form" class="stack">
-    <label for="q">Question</label>
-    <textarea id="q" name="q" rows="3" maxlength="500" required placeholder="Why is SOL moving, and does breadth agree?"></textarea>
-    <button type="submit">Ask Claw</button>
+    <label class="sr" for="q">Question</label>
+    <textarea id="q" name="q" rows="3" maxlength="500" required placeholder="Is the crowd hotter than funding?"></textarea>
+    <button type="submit">Ask</button>
   </form>
   <p id="claw-status" class="banner" role="status"></p>
   <article id="claw-answer" class="answer" hidden></article>

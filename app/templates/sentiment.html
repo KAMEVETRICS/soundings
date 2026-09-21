@@ -4,42 +4,29 @@
   {% if not data.ok %}
     <p class="banner warn">{{ data.error }}</p>
   {% else %}
-    <p class="lede">{{ data.sentiment.headline or "Seven-day sentiment pack" }}</p>
+    <section class="hero"><h1>Sentiment</h1></section>
     <section class="kpis">
       <article class="card">
         <label>Fear &amp; Greed</label>
         <p class="val">{{ data.sentiment.fear_greed if data.sentiment.fear_greed is not none else data.overview.fear_greed }}</p>
-        <p class="hint mute">{{ data.sentiment.fear_greed_label or data.overview.fear_greed_label or "" }}
-          · {{ "7d shift" if data.sentiment.material_shift else "7d stable" }}</p>
+        <p class="hint mute">{{ "7d shift" if data.sentiment.material_shift else "7d stable" }}</p>
       </article>
       <article class="card alt">
         <label>BTC funding 7d</label>
         <p class="val" style="font-size:1.2rem">{{ data.sentiment.funding.crowding or "—" }}</p>
-        <p class="hint mute">90d pctl
-          {% if data.sentiment.funding.percentile_90d is not none %}{{ "%.0f"|format(data.sentiment.funding.percentile_90d) }}{% else %}—{% endif %}
-          · WoW {% if data.sentiment.funding.wow_pct is not none %}{{ "%.1f"|format(data.sentiment.funding.wow_pct) }}%{% else %}—{% endif %}</p>
+        <p class="hint mute">{% if data.sentiment.funding.percentile_90d is not none %}p{{ "%.0f"|format(data.sentiment.funding.percentile_90d) }}{% else %}—{% endif %}</p>
       </article>
       <article class="card">
         <label>BTC liquidations</label>
         <p class="val" style="font-size:1.2rem">{{ data.sentiment.liquidation.dominant or "—" }}</p>
-        <p class="hint mute">{{ data.sentiment.liquidation.total_usd | usd }} · {{ data.sentiment.liquidation.pressure or "" }}
-          · long share {% if data.sentiment.liquidation.long_share_pct is not none %}{{ "%.0f"|format(data.sentiment.liquidation.long_share_pct) }}%{% else %}—{% endif %}</p>
+        <p class="hint mute">{{ data.sentiment.liquidation.total_usd | usd }}</p>
       </article>
       <article class="card alt">
         <label>Altseason</label>
         <p class="val" style="font-size:1.2rem">{{ data.sentiment.altseason.phase or "—" }}</p>
-        <p class="hint mute">index
-          {% if data.sentiment.altseason.index is not none %}{{ data.sentiment.altseason.index | int }}{% else %}—{% endif %}
-          · {{ data.sentiment.regime or "" }}</p>
+        <p class="hint mute">{% if data.sentiment.altseason.index is not none %}{{ data.sentiment.altseason.index | int }}{% else %}—{% endif %}</p>
       </article>
     </section>
-    {% if data.insights %}
-    <section class="insights">
-      {% for card in data.insights %}
-      <article class="insight {{ card.tone }}"><label>{{ card.title }}</label><p>{{ card.body }}</p></article>
-      {% endfor %}
-    </section>
-    {% endif %}
-    {% if data.sentiment.liquidation.scope %}<p class="note">{{ data.sentiment.liquidation.scope }}</p>{% endif %}
+
   {% endif %}
 {% endblock %}

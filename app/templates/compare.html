@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Compare{% endblock %}
 {% block main %}
-  <p class="lede">Two to four tickers.</p>
+  <section class="hero"><h1>Compare</h1></section>
   <form class="inline" method="get" action="/compare">
     <label class="sr" for="symbols">Symbols</label>
     <input id="symbols" name="symbols" value="{{ data.query }}" style="min-width:18rem" />
@@ -10,9 +10,7 @@
   {% if not data.ok %}
     <p class="banner warn">{{ data.error }}</p>
   {% else %}
-    <p class="lede">{{ data.compare.headline }}
-      {% if data.compare.conclusion.confidence %} · confidence {{ data.compare.conclusion.confidence }}{% endif %}</p>
-    <p>{{ data.compare.conclusion.rationale or "" }}</p>
+    <p class="lede">{{ data.compare.headline }}</p>
     {% if data.compare.conclusion.runner_up_case %}<p class="note">{{ data.compare.conclusion.runner_up_case }}</p>{% endif %}
     {% for factor in data.compare.factors %}
     <section>
