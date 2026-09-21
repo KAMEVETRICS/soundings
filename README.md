@@ -73,7 +73,7 @@ Undertow’s frozen weights are `0.5` Fear & Greed + `0.5` funding, stretch `0`.
 ## How it works
 
 1. FastAPI calls RYO MCP REST (`/tools`, then the six research tools) with `RYO_MCP_KEY`.
-2. Successful payloads sit in a memory + disk TTL cache (`RYO_CACHE_TTL`, default 60s). Failures keep last-good data and mark it stale. Missing fields stay blank.
+2. Successful payloads sit in a memory + disk TTL cache (`RYO_CACHE_TTL`, default 180s; last-good served up to `RYO_SWR_TTL`). Failures keep last-good data and mark it stale. Missing fields stay blank. Sidebar swaps the main pane so the chrome stays put.
 3. One market pack (`_fetch_market` → `_assemble_market`) feeds Overview, Analytics, Sentiment, and Insights. Token pages gather `analyze_token` + `deep_analysis`. Compare is `compare_tokens`.
 4. Analytics derives **S** and the gap label from that pack. Optional TrueNorth Fear & Greed / MVRV is a second book, not a substitute for RYO.
 5. Claw may call OpenRouter/xAI and is only allowed to talk about the live evidence pack.

@@ -15,13 +15,8 @@ The organizer repo is private, empty, and this GitHub account can push to `main`
 
 ## Still yours
 
-1. **Demo video.** Record the script below. Upload to Google Drive / Dropbox / OneDrive. Share so organizers can open it. If the file is locked, put the password next to the link. Then set `DEMO_VIDEO` (and `DEMO_VIDEO_PASSWORD` if needed) in `scripts/fill_submission_form.py` and rerun:
-   ```powershell
-   ..\.venv\Scripts\python.exe scripts\fill_submission_form.py
-   ```
-2. **Official Discord PDF.** The blank lives in `#participant-setup-process` (`1538781340093382707`). This session cannot download Discord attachments. The GitHub file other teams used was **Harrie's filled Hanko form**, not a blank. `RYOCHAN-Project-Submission-Form.pdf` here is the same A4 layout, filled for Soundings. If you have the organizer file, copy these answers onto that file instead.
-3. **Push** final code, this PDF, and docs to **main** of `RYO-Digital/ryochan-hackathon_repository-142`. Do not commit `.env` or `data/cache/*.json`. Say when to push.
-4. **Discord `/apply`:**
+1. **Demo video.** Record the script below. Upload to Google Drive / Dropbox / OneDrive. Share so organizers can open it. If the file is locked, put the password next to the link. Then set `DEMO_VIDEO` in `scripts/fill_submission_form.py` and rebuild the PDF.
+2. **Discord `/apply`:**
    - Go to `#buidl` (`1538785340880461905`)
    - Type `/apply` → **Hackathon Submission**
    - Paste exactly: `ryochan-hackathon_repository-142`
@@ -73,7 +68,7 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 CHAMBER_MODEL=x-ai/grok-4.3
 TRUENORTH_MCP_URL=https://mcp.true-north.xyz/mcp
 TRUENORTH_MCP_TOKEN=
-RYO_CACHE_TTL=60
+RYO_CACHE_TTL=180
 ```
 
 ```powershell

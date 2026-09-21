@@ -13,7 +13,47 @@ from . import config
 from .store import cache_get, cache_put
 
 RETRY_STATUSES = {429, 503, 502, 504}
-MAX_ATTEMPTS = 4
+MAX_ATTEMPTS = 2
+_CLIENT: httpx.AsyncClient | None = None
+_MEM: dict[str, dict[str, Any]] = {}
+_REFRESHING: set[str] = set()
+
+
+def bind_client(client: httpx.AsyncClient | None) -> None:
+    global _CLIENT
+    _CLIENT = client
+
+
+def http() -> httpx.AsyncClient:
+    global _CLIENT
+    if _CLIENT is None:
+        _CLIENT = httpx.AsyncClient(
+            timeout=httpx.Timeout(20.0, connect=8.0),
+            limits=httpx.Limits(max_keepalive_connections=8, max_connections=16),
+        )
+    return _CLIENT
+
+
+def _age(envelope: dict[str, Any]) -> float:
+    try:
+        return time.time() - float(envelope.get("fetched_at") or 0)
+    except (TypeError, ValueError):
+        return config.RYO_SWR_TTL + 1
+
+
+def _remember(key: str, envelope: dict[str, Any]) -> dict[str, Any]:
+    _MEM[key] = envelope
+    cache_put(key, envelope)
+    return envelope
+
+
+def _lookup(key: str) -> dict[str, Any] | None:
+    hit = _MEM.get(key)
+    if hit is None:
+        hit = cache_get(key)
+        if hit:
+            _MEM[key] = hit
+    return hit
 
 
 class RyoError(Exception):
@@ -52,7 +92,7 @@ async def _request(
     last_exc: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         try:
-            response = await client.request(method, url, headers=headers, json=json_body, timeout=60.0)
+            response = await client.request(method, url, headers=headers, json=json_body, timeout=20.0)
         except httpx.HTTPError as exc:
             last_exc = exc
             if attempt == MAX_ATTEMPTS - 1:
@@ -114,24 +154,44 @@ async def catalog(client: httpx.AsyncClient) -> dict[str, Any]:
     return data
 
 
+def _kick_refresh(client: httpx.AsyncClient, tool: str, arguments: dict[str, Any], key: str) -> None:
+    if key in _REFRESHING:
+        return
+    _REFRESHING.add(key)
+
+    async def _run() -> None:
+        try:
+            await call_tool(client, tool, arguments, force=True)
+        except Exception:
+            pass
+        finally:
+            _REFRESHING.discard(key)
+
+    try:
+        asyncio.get_running_loop().create_task(_run())
+    except RuntimeError:
+        _REFRESHING.discard(key)
+
+
 async def call_tool(
     client: httpx.AsyncClient,
     tool: str,
     arguments: dict[str, Any] | None = None,
     *,
     allow_stale: bool = True,
+    force: bool = False,
 ) -> dict[str, Any]:
-    """Call a RYO tool. Fresh hits reuse disk cache for RYO_CACHE_TTL seconds. On failure, last-good is tagged stale."""
+    """Call a RYO tool. Memory+disk cache for RYO_CACHE_TTL; last-good served while a refresh runs."""
     arguments = arguments or {}
     key = _cache_key(tool, arguments)
-    cached = cache_get(key)
-    if cached and cached.get("ok") and not cached.get("stale"):
-        try:
-            age = time.time() - float(cached.get("fetched_at") or 0)
-        except (TypeError, ValueError):
-            age = config.RYO_CACHE_TTL + 1
+    cached = None if force else _lookup(key)
+    if cached and cached.get("ok") and cached.get("result") is not None:
+        age = _age(cached)
         if age < config.RYO_CACHE_TTL:
             return cached
+        if age < config.RYO_SWR_TTL:
+            _kick_refresh(client, tool, arguments, key)
+            return {**cached, "stale": True}
     try:
         payload, hdrs = await _request(client, "POST", f"/tools/{tool}/call", json_body=arguments)
         result = payload.get("result", payload)
@@ -150,10 +210,9 @@ async def call_tool(
             },
             "result": result,
         }
-        cache_put(key, envelope)
-        return envelope
+        return _remember(key, envelope)
     except RyoError as exc:
-        cached = cache_get(key) if allow_stale else None
+        cached = _lookup(key) if allow_stale else None
         if cached:
             return {
                 **cached,

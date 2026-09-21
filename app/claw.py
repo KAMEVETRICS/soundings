@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
 
-import httpx
 from openai import OpenAI
 
 from . import config, extract, ryo
@@ -44,12 +44,12 @@ async def answer(question: str) -> dict[str, Any]:
     if not config.ryo_configured():
         return {"ok": False, "error": "RYO_MCP_KEY is not set."}
     symbol = _guess_symbol(question)
-    async with httpx.AsyncClient() as client:
-        overview = await ryo.call_tool(client, "market_overview", {})
-        sentiment = await ryo.call_tool(client, "monitor_market_sentiment_shift", {"time_window": "7d"})
-        token = None
-        if symbol:
-            token = await ryo.call_tool(client, "analyze_token", {"symbol": symbol})
+    client = ryo.http()
+    overview = await ryo.call_tool(client, "market_overview", {})
+    sentiment = await ryo.call_tool(client, "monitor_market_sentiment_shift", {"time_window": "7d"})
+    token = None
+    if symbol:
+        token = await ryo.call_tool(client, "analyze_token", {"symbol": symbol})
     evidence = {
         "overview": extract.extract_overview(overview),
         "sentiment": extract.extract_sentiment(sentiment),
@@ -67,13 +67,15 @@ async def answer(question: str) -> dict[str, Any]:
             "model": None,
         }
     try:
-        response = client_llm.chat.completions.create(
-            model=config.chamber_model(),
-            temperature=0.2,
-            messages=[
-                {"role": "system", "content": SYSTEM},
-                {"role": "user", "content": json.dumps(evidence, default=str)[:10000]},
-            ],
+        response = await asyncio.to_thread(
+            lambda: client_llm.chat.completions.create(
+                model=config.chamber_model(),
+                temperature=0.2,
+                messages=[
+                    {"role": "system", "content": SYSTEM},
+                    {"role": "user", "content": json.dumps(evidence, default=str)[:10000]},
+                ],
+            )
         )
         text = (response.choices[0].message.content or "").strip()
     except Exception as exc:

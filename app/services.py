@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
-
-import httpx
 
 from . import analytics, config, extract, insights, ryo
 from .tickers import parse_symbol
 from .truenorth import TrueNorth, market_pack
+
+_PACK: dict[str, tuple[float, tuple[dict[str, Any], ...]]] = {}
+_PACK_LOCK = asyncio.Lock()
+_PACK_REFRESHING: set[str] = set()
+_TN: tuple[float, dict[str, Any]] | None = None
+_TN_REFRESHING = False
 
 
 def setup() -> dict[str, Any]:
@@ -30,16 +35,83 @@ def _derived_book(overview: dict[str, Any]) -> tuple[Any, Any, float | None, flo
     return vol, cap, turnover, rest_dom
 
 
-async def _fetch_market(scan_n: int = 8, extra: str | None = None) -> tuple[dict[str, Any], ...]:
-    async with httpx.AsyncClient() as client:
-        jobs = [
-            ryo.call_tool(client, "market_overview", {}),
-            ryo.call_tool(client, "monitor_market_sentiment_shift", {"time_window": "7d"}),
-            ryo.call_tool(client, "scan_market", {"top_n": scan_n}),
-        ]
-        if extra:
-            jobs.append(ryo.call_tool(client, "analyze_token", {"symbol": extra}))
-        return tuple(await asyncio.gather(*jobs))
+def _kick_truenorth() -> None:
+    global _TN_REFRESHING
+    if _TN_REFRESHING:
+        return
+    _TN_REFRESHING = True
+
+    async def _run() -> None:
+        global _TN, _TN_REFRESHING
+        try:
+            tn = TrueNorth(ryo.http())
+            second = await asyncio.wait_for(market_pack(tn), timeout=8)
+            _TN = (time.time(), second)
+        except Exception:
+            pass
+        finally:
+            _TN_REFRESHING = False
+
+    try:
+        asyncio.get_running_loop().create_task(_run())
+    except RuntimeError:
+        _TN_REFRESHING = False
+
+
+def _pack_key(scan_n: int, extra: str | None) -> str:
+    return f"{scan_n}:{extra or ''}"
+
+
+async def _fetch_market_live(scan_n: int, extra: str | None) -> tuple[dict[str, Any], ...]:
+    client = ryo.http()
+    jobs = [
+        ryo.call_tool(client, "market_overview", {}),
+        ryo.call_tool(client, "monitor_market_sentiment_shift", {"time_window": "7d"}),
+        ryo.call_tool(client, "scan_market", {"top_n": scan_n}),
+    ]
+    if extra:
+        jobs.append(ryo.call_tool(client, "analyze_token", {"symbol": extra}))
+    return tuple(await asyncio.gather(*jobs))
+
+
+def _kick_pack(scan_n: int, extra: str | None) -> None:
+    key = _pack_key(scan_n, extra)
+    if key in _PACK_REFRESHING:
+        return
+    _PACK_REFRESHING.add(key)
+
+    async def _run() -> None:
+        try:
+            live = await _fetch_market_live(scan_n, extra)
+            _PACK[key] = (time.time(), live)
+        except Exception:
+            pass
+        finally:
+            _PACK_REFRESHING.discard(key)
+
+    try:
+        asyncio.get_running_loop().create_task(_run())
+    except RuntimeError:
+        _PACK_REFRESHING.discard(key)
+
+
+async def _fetch_market(scan_n: int = 12, extra: str | None = None) -> tuple[dict[str, Any], ...]:
+    key = _pack_key(scan_n, extra)
+    hit = _PACK.get(key)
+    now = time.time()
+    if hit and now - hit[0] < config.RYO_CACHE_TTL:
+        return hit[1]
+    if hit and now - hit[0] < config.RYO_SWR_TTL:
+        _kick_pack(scan_n, extra)
+        return tuple({**env, "stale": True} for env in hit[1])
+    async with _PACK_LOCK:
+        hit = _PACK.get(key)
+        now = time.time()
+        if hit and now - hit[0] < config.RYO_CACHE_TTL:
+            return hit[1]
+        live = await _fetch_market_live(scan_n, extra)
+        _PACK[key] = (time.time(), live)
+        return live
 
 
 def _assemble_market(
@@ -82,15 +154,14 @@ def _assemble_market(
 async def load_overview() -> dict[str, Any]:
     if not config.ryo_configured():
         return {"ok": False, "error": "RYO_MCP_KEY is not set."}
-    overview_env, sentiment_env, scan_env = await _fetch_market(8)
+    overview_env, sentiment_env, scan_env = await _fetch_market(12)
     return _assemble_market(overview_env, sentiment_env, scan_env)
 
 
 async def load_screener(top_n: int = 12) -> dict[str, Any]:
     if not config.ryo_configured():
         return {"ok": False, "error": "RYO_MCP_KEY is not set."}
-    async with httpx.AsyncClient() as client:
-        scan_env = await ryo.call_tool(client, "scan_market", {"top_n": top_n})
+    scan_env = await ryo.call_tool(ryo.http(), "scan_market", {"top_n": top_n})
     table = _screener_rows(scan_env)
     table.sort(key=lambda r: abs(r.get("change_24h") or 0), reverse=True)
     meta = extract.extract_scan_meta(scan_env)
@@ -107,11 +178,11 @@ async def load_screener(top_n: int = 12) -> dict[str, Any]:
     }
 
 
-async def _deep_or_none(client: httpx.AsyncClient, symbol: str) -> dict[str, Any] | None:
+async def _deep_or_none(client: Any, symbol: str) -> dict[str, Any] | None:
     try:
         return await asyncio.wait_for(
             ryo.call_tool(client, "deep_analysis", {"symbol": symbol, "include_perp": False}),
-            timeout=40,
+            timeout=20,
         )
     except asyncio.TimeoutError:
         return None
@@ -122,11 +193,11 @@ async def load_token(symbol: str) -> dict[str, Any]:
     if not parsed["ok"] or parsed.get("empty"):
         return {"ok": False, "error": parsed.get("error") or "Enter a ticker.", "code": parsed.get("code")}
     canon = parsed["symbol"]
-    async with httpx.AsyncClient() as client:
-        analyze_env, deep_env = await asyncio.gather(
-            ryo.call_tool(client, "analyze_token", {"symbol": canon}),
-            _deep_or_none(client, canon),
-        )
+    client = ryo.http()
+    analyze_env, deep_env = await asyncio.gather(
+        ryo.call_tool(client, "analyze_token", {"symbol": canon}),
+        _deep_or_none(client, canon),
+    )
     token = extract.extract_token(analyze_env, fallback_symbol=canon)
     if token.get("price") is None:
         return {
@@ -173,26 +244,27 @@ async def load_compare(symbols: str) -> dict[str, Any]:
     if len(names) < 2:
         return {"ok": False, "error": "Enter two to four tickers, e.g. SOL, ORCA, CFG.", "symbols": names}
     names = names[:4]
-    async with httpx.AsyncClient() as client:
-        env = await ryo.call_tool(client, "compare_tokens", {"symbols": ", ".join(names), "intent": "swing"})
+    env = await ryo.call_tool(ryo.http(), "compare_tokens", {"symbols": ", ".join(names), "intent": "swing"})
     view = extract.extract_compare(env)
     return {"ok": True, "symbols": names, "compare": view, "stale": bool(env.get("stale")), "as_of": view.get("as_of")}
 
 
 async def load_analytics() -> dict[str, Any]:
+    global _TN
     if not config.ryo_configured():
         return {"ok": False, "error": "RYO_MCP_KEY is not set."}
-    overview_env, sentiment_env, scan_env, btc_env = await _fetch_market(8, extra="BTC")
+    overview_env, sentiment_env, scan_env = await _fetch_market(12)
+    btc_env = await ryo.call_tool(ryo.http(), "analyze_token", {"symbol": "BTC"})
     btc = extract.extract_token(btc_env, fallback_symbol="BTC")
     pack = _assemble_market(overview_env, sentiment_env, scan_env, btc=btc)
     second: dict[str, Any] | None = None
     if config.truenorth_configured():
-        async with httpx.AsyncClient() as client:
-            try:
-                tn = TrueNorth(client)
-                second = await asyncio.wait_for(market_pack(tn), timeout=12)
-            except Exception as exc:
-                second = {"status": "unavailable", "notes": [str(exc)]}
+        now = time.time()
+        if _TN and now - _TN[0] < config.RYO_CACHE_TTL:
+            second = _TN[1]
+        else:
+            second = _TN[1] if _TN else None
+            _kick_truenorth()
     pack["btc"] = btc
     pack["second_book"] = second
     pack["headline"] = ((pack.get("stress") or {}).get("gap") or {}).get("label") or pack.get("headline")
@@ -203,18 +275,18 @@ async def load_analytics() -> dict[str, Any]:
 async def load_ryo_catalog() -> dict[str, Any]:
     if not config.ryo_configured():
         return {"ok": False, "error": "RYO_MCP_KEY is not set."}
-    async with httpx.AsyncClient() as client:
+    client = ryo.http()
+    try:
+        payload = await ryo.catalog(client)
+    except ryo.RyoError as exc:
         try:
-            payload = await ryo.catalog(client)
-        except ryo.RyoError as exc:
-            try:
-                me = await ryo.whoami(client)
-            except Exception:
-                return {"ok": False, "error": str(exc), "code": exc.code}
-            tools = me.get("tools")
-            if not tools:
-                return {"ok": False, "error": str(exc), "code": exc.code}
-            return {"ok": True, "source": "whoami", "catalog": {"tools": tools}, "tools": tools}
+            me = await ryo.whoami(client)
+        except Exception:
+            return {"ok": False, "error": str(exc), "code": exc.code}
+        tools = me.get("tools")
+        if not tools:
+            return {"ok": False, "error": str(exc), "code": exc.code}
+        return {"ok": True, "source": "whoami", "catalog": {"tools": tools}, "tools": tools}
     tools = payload.get("tools") if isinstance(payload.get("tools"), list) else payload.get("data") or payload
     return {"ok": True, "source": "tools", "catalog": payload, "tools": tools}
 
@@ -222,11 +294,10 @@ async def load_ryo_catalog() -> dict[str, Any]:
 async def load_ryo_whoami() -> dict[str, Any]:
     if not config.ryo_configured():
         return {"ok": False, "error": "RYO_MCP_KEY is not set."}
-    async with httpx.AsyncClient() as client:
-        try:
-            payload = await ryo.whoami(client)
-        except ryo.RyoError as exc:
-            return {"ok": False, "error": str(exc), "code": exc.code}
+    try:
+        payload = await ryo.whoami(ryo.http())
+    except ryo.RyoError as exc:
+        return {"ok": False, "error": str(exc), "code": exc.code}
     blocked = {"key", "token", "secret", "authorization", "api_key"}
     safe = {k: v for k, v in payload.items() if str(k).lower() not in blocked}
     return {"ok": True, "whoami": safe}

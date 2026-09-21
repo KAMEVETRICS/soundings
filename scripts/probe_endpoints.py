@@ -42,6 +42,30 @@ def hit(path: str, timeout: int = 90) -> None:
         print(f"FAIL {path} {type(exc).__name__}: {exc}", flush=True)
 
 
+def post(path: str, payload: dict, timeout: int = 90) -> None:
+    t0 = time.time()
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        base + path,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read().decode("utf-8", "replace")
+            dt = time.time() - t0
+            extra = ""
+            if raw[:1] == "{":
+                data = json.loads(raw)
+                extra = f" ok={data.get('ok')} model={data.get('model')}"
+                if data.get("error"):
+                    extra += f" err={str(data.get('error'))[:80]}"
+            print(f"{response.status} {path} {dt:.1f}s{extra}", flush=True)
+    except Exception as exc:
+        print(f"FAIL {path} {type(exc).__name__}: {exc}", flush=True)
+
+
 def main() -> None:
     for path in [
         "/api/health",
@@ -62,6 +86,7 @@ def main() -> None:
         "/token/SOL",
     ]:
         hit(path)
+    post("/api/claw", {"question": "Is the crowd hotter than BTC funding?"})
 
 
 if __name__ == "__main__":

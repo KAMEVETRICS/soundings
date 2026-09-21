@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from . import formatters
+from . import formatters, ryo
 from .claw import answer as claw_answer
 from .services import (
     load_analytics,
@@ -22,13 +24,26 @@ from .services import (
     setup,
 )
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(20.0, connect=8.0),
+        limits=httpx.Limits(max_keepalive_connections=8, max_connections=16),
+    ) as client:
+        ryo.bind_client(client)
+        try:
+            yield
+        finally:
+            ryo.bind_client(None)
+
 ROOT = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(ROOT / "templates"))
 templates.env.filters["money"] = formatters.money
 templates.env.filters["pct"] = formatters.pct
 templates.env.filters["usd"] = formatters.usd_compact
 
-app = FastAPI(title="Soundings", version="0.3.0")
+app = FastAPI(title="Soundings", version="0.3.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
 api = APIRouter(prefix="/api", tags=["data"])
 
