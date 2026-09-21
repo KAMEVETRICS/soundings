@@ -92,7 +92,6 @@ Open http://127.0.0.1:8001/analytics
 | `scan_market` | Overview chart, Screener |
 | `analyze_token` | Token page, BTC stretch readout |
 | `deep_analysis` | Token confluence / ATR plan |
-| `compare_tokens` | Compare |
 
 Soundings does not send orders.
 
@@ -105,9 +104,8 @@ Soundings does not send orders.
 3. `/screener` — open a name.
 4. `/token/SOL` — RSI, gates, ATR plan.
 5. `/sentiment` — F&G vs funding crowding vs liquidation side.
-6. `/compare?symbols=SOL,ETH,BTC`.
-7. `/api/overview` and `/api/analytics` — same desks as JSON.
-8. `/claw` — “Is the crowd hotter than BTC funding?”
+6. `/api/overview` and `/api/analytics` — same desks as JSON.
+7. `/claw` — “Is the crowd hotter than BTC funding?”
 
 ---
 

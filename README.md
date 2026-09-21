@@ -13,7 +13,6 @@ The Analytics desk answers one question: is Fear & Greed confirmed by BTC fundin
 | Screener | Ranked candidates, turnover, spike flags | `scan_market` |
 | Token | Horizons, RSI, ATR, gates, ATR preview plan | `analyze_token` + `deep_analysis` |
 | Sentiment | Seven-day F&G, BTC funding, liquidations, altseason | `monitor_market_sentiment_shift` |
-| Compare | Momentum / activity / volatility factors | `compare_tokens` |
 | Insights | Derived cards from the same snapshot | no extra tools |
 | Claw | Ask what changed; answers only from live evidence | overview + sentiment + optional token + OpenRouter |
 
@@ -52,7 +51,6 @@ Slices of overview (totals, funding, gates, …) live **on the pack**, not as ex
 | GET | `/api/analytics` | Crowd vs tape (S, gap, BTC RSI, optional TrueNorth F&G/MVRV) |
 | GET | `/api/screener?top_n=` | Ranked scan (1–16) |
 | GET | `/api/token/{symbol}` | Fast read + deep pack |
-| GET | `/api/compare?symbols=` | Factor comparison |
 | POST | `/api/claw` | `{ "question": "..." }` |
 
 ## How S is built
@@ -72,15 +70,14 @@ Weights: `0.5` Fear & Greed + `0.5` funding. Stretch is shown at weight `0`.
 3. Screener — sort is already by 24h magnitude; open a name.
 4. Token — RSI, gates, ATR preview plan marked preview_only.
 5. Sentiment — F&G vs funding crowding vs liquidation side.
-6. Compare — `SOL, ETH, BTC`.
-7. `/api/analytics` — same desk as JSON.
-8. Claw — "Is the crowd hotter than BTC funding?"
+6. `/api/analytics` — same desk as JSON.
+7. Claw — "Is the crowd hotter than BTC funding?"
 
 ## How it works
 
 1. FastAPI calls RYO MCP REST (`/tools`, then the six research tools) with `RYO_MCP_KEY`.
 2. Successful payloads sit in a memory + disk TTL cache (`RYO_CACHE_TTL`, default 180s; last-good served up to `RYO_SWR_TTL`). Failures keep last-good data and mark it stale. Missing fields stay blank. Sidebar swaps the main pane so the chrome stays put.
-3. One market pack (`_fetch_market` → `_assemble_market`) feeds Overview, Analytics, Sentiment, and Insights. Token pages gather `analyze_token` + `deep_analysis`. Compare is `compare_tokens`.
+3. One market pack (`_fetch_market` → `_assemble_market`) feeds Overview, Analytics, Sentiment, and Insights. Token pages gather `analyze_token` + `deep_analysis`.
 4. Analytics derives **S** and the gap label from that pack. Optional TrueNorth Fear & Greed / MVRV is a second book, not a substitute for RYO.
 5. Claw may call OpenRouter/xAI and is only allowed to talk about the live evidence pack.
 

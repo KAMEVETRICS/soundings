@@ -373,34 +373,6 @@ def extract_token(envelope: dict[str, Any] | None, fallback_symbol: str | None =
     }
 
 
-def extract_compare(envelope: dict[str, Any] | None) -> dict[str, Any]:
-    data = data_of(envelope)
-    summary = summary_of(envelope)
-    result = result_of(envelope) or {}
-    factors = data.get("factors") if isinstance(data.get("factors"), list) else []
-    conclusion = data.get("conclusion") if isinstance(data.get("conclusion"), dict) else {}
-    tokens = data.get("tokens") if isinstance(data.get("tokens"), list) else []
-    return {
-        "status": status_of(envelope),
-        "data_mode": data_mode_of(envelope),
-        "as_of": dig(result, "as_of"),
-        "headline": as_text(summary.get("headline")) if summary else None,
-        "points": flatten_points(summary.get("key_points") or summary.get("points")),
-        "warnings": warnings_of(envelope),
-        "stale": bool((envelope or {}).get("stale")),
-        "intent": data.get("intent"),
-        "winner": data.get("winner"),
-        "runner_up": conclusion.get("runner_up") or data.get("runner_up"),
-        "confidence": conclusion.get("confidence"),
-        "rationale": as_text(conclusion.get("rationale")),
-        "runner_up_case": as_text(conclusion.get("runner_up_case")),
-        "factors": factors,
-        "conclusion": conclusion,
-        "tokens": tokens,
-        "coverage": data.get("coverage_by_token"),
-    }
-
-
 def extract_scan_meta(envelope: dict[str, Any] | None) -> dict[str, Any]:
     data = data_of(envelope)
     summary = summary_of(envelope)

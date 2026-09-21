@@ -15,7 +15,6 @@ from . import formatters, ryo
 from .claw import answer as claw_answer
 from .services import (
     load_analytics,
-    load_compare,
     load_overview,
     load_ryo_catalog,
     load_ryo_whoami,
@@ -94,17 +93,6 @@ async def insights_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "insights.html", _ctx(request, nav="insights", data=data))
 
 
-@app.get("/compare", response_class=HTMLResponse)
-async def compare_page(request: Request, symbols: str | None = None) -> HTMLResponse:
-    query = (symbols or "").strip()
-    if not query:
-        data = {"ok": False, "error": None, "query": "SOL, ETH, BTC"}
-    else:
-        data = await load_compare(query)
-        data["query"] = query
-    return templates.TemplateResponse(request, "compare.html", _ctx(request, nav="compare", data=data))
-
-
 @app.get("/claw", response_class=HTMLResponse)
 async def claw_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "claw.html", _ctx(request, nav="claw"))
@@ -119,7 +107,7 @@ def _api_index() -> dict[str, Any]:
         "ok": True,
         "name": "Soundings",
         "setup": setup(),
-        "pages": ["/", "/analytics", "/screener", "/sentiment", "/compare", "/insights", "/claw"],
+        "pages": ["/", "/analytics", "/screener", "/sentiment", "/insights", "/claw"],
         "endpoints": [
             "GET /api/health",
             "GET /api/catalog",
@@ -128,7 +116,6 @@ def _api_index() -> dict[str, Any]:
             "GET /api/analytics",
             "GET /api/screener?top_n=",
             "GET /api/token/{symbol}",
-            "GET /api/compare?symbols=",
             "POST /api/claw",
         ],
     }
@@ -177,11 +164,6 @@ async def api_screener(top_n: int = Query(default=12, ge=1, le=16)) -> JSONRespo
 @api.get("/token/{symbol}")
 async def api_token(symbol: str) -> JSONResponse:
     return _json(await load_token(symbol), error_status=400)
-
-
-@api.get("/compare")
-async def api_compare(symbols: str = Query(default="SOL,ETH,BTC")) -> JSONResponse:
-    return _json(await load_compare(symbols), error_status=400)
 
 
 @api.post("/claw")

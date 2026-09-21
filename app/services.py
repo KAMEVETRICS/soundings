@@ -242,25 +242,6 @@ async def load_token(symbol: str) -> dict[str, Any]:
     }
 
 
-async def load_compare(symbols: str) -> dict[str, Any]:
-    raw = [parse_symbol(part.strip()).get("symbol") for part in (symbols or "").replace(";", ",").split(",") if part.strip()]
-    names = [s for s in raw if s]
-    if len(names) < 2:
-        return {"ok": False, "error": "Enter two to four tickers, e.g. SOL, ORCA, CFG.", "symbols": names}
-    names = names[:4]
-    env = await ryo.call_tool(ryo.http(), "compare_tokens", {"symbols": ", ".join(names), "intent": "swing"})
-    view = extract.extract_compare(env)
-    if not env.get("ok") and not view.get("factors"):
-        err = ((env.get("error") or {}) if isinstance(env.get("error"), dict) else {})
-        return {
-            "ok": False,
-            "error": err.get("message") or "Compare failed.",
-            "symbols": names,
-            "stale": bool(env.get("stale")),
-        }
-    return {"ok": True, "symbols": names, "compare": view, "stale": bool(env.get("stale")), "as_of": view.get("as_of")}
-
-
 async def load_analytics() -> dict[str, Any]:
     global _TN
     if not config.ryo_configured():
