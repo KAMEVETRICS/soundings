@@ -250,6 +250,14 @@ async def load_compare(symbols: str) -> dict[str, Any]:
     names = names[:4]
     env = await ryo.call_tool(ryo.http(), "compare_tokens", {"symbols": ", ".join(names), "intent": "swing"})
     view = extract.extract_compare(env)
+    if not env.get("ok") and not view.get("factors"):
+        err = ((env.get("error") or {}) if isinstance(env.get("error"), dict) else {})
+        return {
+            "ok": False,
+            "error": err.get("message") or "Compare failed.",
+            "symbols": names,
+            "stale": bool(env.get("stale")),
+        }
     return {"ok": True, "symbols": names, "compare": view, "stale": bool(env.get("stale")), "as_of": view.get("as_of")}
 
 

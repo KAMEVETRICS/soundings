@@ -95,9 +95,13 @@ async def insights_page(request: Request) -> HTMLResponse:
 
 
 @app.get("/compare", response_class=HTMLResponse)
-async def compare_page(request: Request, symbols: str = "SOL, ETH, BTC") -> HTMLResponse:
-    data = await load_compare(symbols)
-    data["query"] = symbols
+async def compare_page(request: Request, symbols: str | None = None) -> HTMLResponse:
+    query = (symbols or "").strip()
+    if not query:
+        data = {"ok": False, "error": None, "query": "SOL, ETH, BTC"}
+    else:
+        data = await load_compare(query)
+        data["query"] = query
     return templates.TemplateResponse(request, "compare.html", _ctx(request, nav="compare", data=data))
 
 

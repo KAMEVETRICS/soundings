@@ -7,26 +7,32 @@
     <input id="symbols" name="symbols" value="{{ data.query }}" style="min-width:18rem" />
     <button type="submit">Compare</button>
   </form>
-  {% if not data.ok %}
+  {% if data.error %}
     <p class="banner warn">{{ data.error }}</p>
-  {% else %}
-    <p class="lede">{{ data.compare.headline }}</p>
-    {% if data.compare.conclusion.runner_up_case %}<p class="note">{{ data.compare.conclusion.runner_up_case }}</p>{% endif %}
-    {% for factor in data.compare.factors %}
+  {% elif data.ok %}
+    {% if data.compare.headline %}<p class="lede">{{ data.compare.headline }}</p>{% endif %}
+    {% if data.compare.conclusion and data.compare.conclusion.runner_up_case %}
+    <p class="note">{{ data.compare.conclusion.runner_up_case }}</p>
+    {% endif %}
+    {% for factor in data.compare.factors or [] %}
     <section>
-      <h2 class="page">{{ factor.label or factor.key }} · winner {{ factor.winner }}</h2>
+      <h2 class="page">{{ factor.label or factor.key }}{% if factor.winner %} · {{ factor.winner }}{% endif %}</h2>
       <table>
         <thead><tr><th>Ticker</th><th>Score</th></tr></thead>
         <tbody>
-          {% for sym, score in (factor.scores or {}).items() %}
-          <tr>
-            <td><a href="/token/{{ sym }}">{{ sym }}</a></td>
-            <td>{% if score is not none %}{{ score }}{% else %}unavailable{% endif %}</td>
-          </tr>
-          {% endfor %}
+          {% if factor.scores is mapping %}
+            {% for sym, score in factor.scores.items() %}
+            <tr>
+              <td><a href="/token/{{ sym }}">{{ sym }}</a></td>
+              <td>{% if score is not none %}{{ score }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          {% endif %}
         </tbody>
       </table>
     </section>
+    {% else %}
+    <p class="hint mute">No factor scores.</p>
     {% endfor %}
   {% endif %}
 {% endblock %}
