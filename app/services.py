@@ -162,8 +162,9 @@ async def load_screener(top_n: int = 12) -> dict[str, Any]:
     if not config.ryo_configured():
         return {"ok": False, "error": "RYO_MCP_KEY is not set."}
     scan_env = await ryo.call_tool(ryo.http(), "scan_market", {"top_n": top_n})
-    table = _screener_rows(scan_env)
-    table.sort(key=lambda r: abs(r.get("change_24h") or 0), reverse=True)
+    table = _annotate_heat(_screener_rows(scan_env))
+    table.sort(key=lambda r: r.get("volume") or 0, reverse=True)
+    moved = [r for r in table if r.get("change_24h") is not None]
     meta = extract.extract_scan_meta(scan_env)
     return {
         "ok": True,
@@ -175,6 +176,9 @@ async def load_screener(top_n: int = 12) -> dict[str, Any]:
         "status": extract.status_of(scan_env),
         "as_of": meta.get("as_of"),
         "spikes": [r for r in table if r.get("spike")],
+        "scan_volume": sum((r.get("volume") or 0) for r in table),
+        "top_gainer": max(moved, key=lambda r: r["change_24h"], default=None),
+        "top_loser": min(moved, key=lambda r: r["change_24h"], default=None),
     }
 
 
@@ -301,6 +305,25 @@ async def load_ryo_whoami() -> dict[str, Any]:
     blocked = {"key", "token", "secret", "authorization", "api_key"}
     safe = {k: v for k, v in payload.items() if str(k).lower() not in blocked}
     return {"ok": True, "whoami": safe}
+
+
+def _annotate_heat(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    vmax = max((r.get("volume") or 0) for r in rows) or 1
+    for row in rows:
+        vol = row.get("volume") or 0
+        row["heat_flex"] = max(1.0, 1.0 + 3.0 * (vol / vmax))
+        chg = row.get("change_24h")
+        if chg is None:
+            row["heat"] = "flat"
+        elif chg >= 8:
+            row["heat"] = "up-hard"
+        elif chg >= 0:
+            row["heat"] = "up"
+        elif chg <= -8:
+            row["heat"] = "down-hard"
+        else:
+            row["heat"] = "down"
+    return rows
 
 
 def _screener_rows(scan_env: dict[str, Any]) -> list[dict[str, Any]]:

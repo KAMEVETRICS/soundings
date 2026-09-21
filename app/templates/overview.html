@@ -38,18 +38,6 @@
       </article>
     </section>
 
-    {% if data.insights %}
-    <div class="section-head"><h3>Insights</h3></div>
-    <section class="insights">
-      {% for card in data.insights %}
-      <article class="insight {{ card.tone }}">
-        <label>{{ card.title }}</label>
-        <p>{{ card.body }}</p>
-      </article>
-      {% endfor %}
-    </section>
-    {% endif %}
-
     <section class="chart-panel">
       <div class="chart-head">
         <div>

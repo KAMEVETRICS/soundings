@@ -1,10 +1,52 @@
 {% extends "base.html" %}
 {% block title %}Screener{% endblock %}
 {% block main %}
-  <p class="lede">{{ data.headline or "Ranked by 24h move." }}</p>
+  <section class="hero">
+    <h1>Markets<br /><span>scan</span></h1>
+    <p>{{ data.headline or "Size is 24h volume. Color is 24h change. No open interest on this book." }}</p>
+  </section>
   {% if not data.ok %}
     <p class="banner warn">{{ data.error }}</p>
   {% else %}
+    <section class="kpis" aria-label="Scan summary">
+      <article class="card">
+        <label>Scan 24h volume</label>
+        <p class="val">{{ data.scan_volume | usd }}</p>
+        <p class="hint mute">{{ data.rows | length }} names</p>
+      </article>
+      <article class="card alt">
+        <label>Top gainer</label>
+        <p class="val">{% if data.top_gainer %}{{ data.top_gainer.symbol }}{% else %}—{% endif %}</p>
+        <p class="hint">{% if data.top_gainer %}{{ data.top_gainer.change_24h | pct }}{% endif %}</p>
+      </article>
+      <article class="card">
+        <label>Top loser</label>
+        <p class="val">{% if data.top_loser %}{{ data.top_loser.symbol }}{% else %}—{% endif %}</p>
+        <p class="hint mute">{% if data.top_loser %}{{ data.top_loser.change_24h | pct }}{% endif %}</p>
+      </article>
+      <article class="card alt">
+        <label>Spikes</label>
+        <p class="val">{{ data.spikes | length }}</p>
+        <p class="hint mute">turnover ≥ 1 or |24h| ≥ 80%</p>
+      </article>
+    </section>
+
+    <div class="section-head">
+      <h3>Heatmap</h3>
+      <span>tile size = volume · color = 24h %</span>
+    </div>
+    <div class="heat" role="list">
+      {% for row in data.rows %}
+      <a class="heat-cell {{ row.heat }}" href="/token/{{ row.symbol }}" style="flex-grow: {{ '%.2f'|format(row.heat_flex) }}" role="listitem">
+        <strong>{{ row.symbol }}</strong>
+        <span class="{{ 'up' if (row.change_24h or 0) >= 0 else 'down' }}">{{ row.change_24h | pct }}</span>
+        <span class="hint mute">{{ row.volume | usd }}</span>
+      </a>
+      {% else %}
+      <p>No scan rows.</p>
+      {% endfor %}
+    </div>
+
     <table class="wide">
       <thead>
         <tr>

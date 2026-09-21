@@ -227,6 +227,27 @@ footer.slim { margin-top: 3rem; color: var(--mute); font-size: 0.75rem; }
 }
 .surface-card strong { color: var(--cyan-soft); font-weight: 700; }
 
+.heat { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1.8rem; }
+.heat-cell {
+  flex: 1 1 6.5rem;
+  min-width: 6.2rem;
+  min-height: 5.2rem;
+  padding: 0.75rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: var(--text);
+  gap: 0.15rem;
+}
+.heat-cell strong { font-size: 0.95rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.heat-cell .hint { margin: 0; }
+.heat-cell.up { background: rgba(0, 191, 255, 0.28); }
+.heat-cell.up-hard { background: rgba(0, 191, 255, 0.5); }
+.heat-cell.down { background: rgba(255, 180, 171, 0.22); }
+.heat-cell.down-hard { background: rgba(255, 180, 171, 0.42); }
+.heat-cell.flat { background: #1b1b1b; }
+.heat-cell:hover { outline: 1px solid var(--cyan); }
+
 @media (max-width: 960px) {
   .shell { flex-direction: column; }
   .sidebar {

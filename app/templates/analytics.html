@@ -132,18 +132,6 @@
       </article>
     </section>
 
-    {% if data.insights %}
-    <div class="section-head"><h3>Insights</h3></div>
-    <section class="insights">
-      {% for card in data.insights %}
-      <article class="insight {{ card.tone }}">
-        <label>{{ card.title }}</label>
-        <p>{{ card.body }}</p>
-      </article>
-      {% endfor %}
-    </section>
-    {% endif %}
-
     {% if data.second_book %}
     <div class="section-head"><h3>TrueNorth</h3><span>Fear &amp; Greed / MVRV</span></div>
     <section class="kpis">
