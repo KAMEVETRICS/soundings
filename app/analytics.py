@@ -57,18 +57,46 @@ def _tape_label(crowding: str | None, percentile: float | None) -> str:
 def _gap(crowd: str, tape: str) -> dict[str, str]:
     """Surface Fear & Greed versus BTC funding underneath."""
     if crowd == "greed" and tape in {"normal", "uncrowded"}:
-        return {"code": "crowd_hotter_than_tape", "label": "Crowd hotter than tape", "body": "Greedy crowd, funding not crowded."}
+        return {
+            "code": "crowd_hotter_than_tape",
+            "label": "Crowd hotter than tape",
+            "body": "Fear & Greed is greedy. BTC funding is not crowded.",
+        }
     if crowd == "greed" and tape == "crowded":
-        return {"code": "aligned_froth", "label": "Aligned froth", "body": "Greedy crowd, crowded funding."}
+        return {
+            "code": "aligned_froth",
+            "label": "Aligned froth",
+            "body": "Fear & Greed is greedy. Funding is crowded.",
+        }
     if crowd == "fear" and tape == "crowded":
-        return {"code": "tape_hotter_than_crowd", "label": "Tape hotter than crowd", "body": "Fearful crowd, funding still crowded."}
+        return {
+            "code": "tape_hotter_than_crowd",
+            "label": "Tape hotter than crowd",
+            "body": "Fear & Greed is fearful. Funding is still crowded.",
+        }
     if crowd == "fear" and tape == "uncrowded":
-        return {"code": "aligned_fear", "label": "Aligned fear", "body": "Fearful crowd, light funding."}
+        return {
+            "code": "aligned_fear",
+            "label": "Aligned fear",
+            "body": "Fear & Greed is fearful. Funding is light.",
+        }
     if crowd == "fear" and tape == "normal":
-        return {"code": "crowd_colder_than_tape", "label": "Crowd colder than tape", "body": "Fearful crowd, normal funding."}
+        return {
+            "code": "crowd_colder_than_tape",
+            "label": "Crowd colder than tape",
+            "body": "Fear & Greed is fearful. Funding is normal.",
+        }
     if crowd == "greed":
-        return {"code": "crowd_hot", "label": "Crowd hot", "body": "Greedy crowd."}
-    return {"code": "aligned_neutral", "label": "Mid-range", "body": "Crowd and funding mid-range."}
+        return {
+            "code": "crowd_hot",
+            "label": "Crowd hot",
+            "body": "Fear & Greed is greedy.",
+        }
+    return {
+        "code": "aligned_neutral",
+        "label": "Mid-range",
+        "body": "Crowd and funding are both mid-range.",
+    }
 
 
 def positioning_stress(
@@ -118,25 +146,53 @@ def positioning_stress(
         needle = max(0.0, min(100.0, ((score + 2.0) / 4.0) * 100.0))
 
     components = [
-        {"key": "fear_greed", "label": "Crowd F&G", "raw": fg, "z": z_fng, "weight": weights["w_fng"], "in_s": z_fng is not None},
-        {"key": "funding", "label": "Funding pctl", "raw": fund_pctl, "z": z_funding, "weight": weights["w_funding"], "in_s": z_funding is not None},
-        {"key": "stretch", "label": "BTC RSI", "raw": rsi, "z": z_stretch, "weight": weights["w_stretch"], "in_s": False},
-        {"key": "liquidations", "label": "Liq pctl", "raw": liq_pctl, "z": z_liq, "weight": 0.0, "in_s": False},
+        {
+            "key": "fear_greed",
+            "label": "Fear & Greed (crowd)",
+            "raw": fg,
+            "unit": "index 0–100",
+            "z": z_fng,
+            "weight": weights["w_fng"],
+            "in_s": z_fng is not None,
+            "note": "Live map (value − 50) / 25. Not a rolling z-score.",
+        },
+        {
+            "key": "funding",
+            "label": "BTC funding 90d percentile (tape)",
+            "raw": fund_pctl,
+            "unit": "percentile",
+            "z": z_funding,
+            "weight": weights["w_funding"],
+            "in_s": z_funding is not None,
+            "note": "RYO already scored the 7-day mean against 90 days of BTC funding.",
+        },
+        {
+            "key": "stretch",
+            "label": "BTC RSI(14) stretch",
+            "raw": rsi,
+            "unit": "RSI",
+            "z": z_stretch,
+            "weight": weights["w_stretch"],
+            "in_s": False,
+            "note": "Shown only. Stretch weight is 0.",
+        },
+        {
+            "key": "liquidations",
+            "label": "BTC liquidation 90d percentile",
+            "raw": liq_pctl,
+            "unit": "percentile",
+            "z": z_liq,
+            "weight": 0.0,
+            "in_s": False,
+            "note": "Context, not inside S. RYO has no open-interest history here.",
+        },
     ]
-    for row in components:
-        z = row["z"]
-        row["bar"] = abs(z) * 25 if z is not None else 0
-        row["side"] = "pos" if (z or 0) >= 0 else "neg"
 
     btc_dom = as_number(overview.get("btc_dominance"))
     eth_dom = as_number(overview.get("eth_dominance"))
     rest_dom = None
     if btc_dom is not None:
         rest_dom = 100.0 - btc_dom - (eth_dom or 0.0)
-    liq_long = as_number(liquidation.get("long_share_pct"))
-    adv = overview.get("advancing")
-    dec = overview.get("declining")
-    breadth_n = (adv or 0) + (dec or 0) if isinstance(adv, int) and isinstance(dec, int) else 0
 
     return {
         "S": score,
@@ -175,15 +231,4 @@ def positioning_stress(
         },
         "gap": gap,
         "measurement": {"label": gap["label"], "code": gap["code"]},
-        "viz": {
-            "fg": fg,
-            "fund_pctl": fund_pctl,
-            "liq_long": liq_long,
-            "liq_short": (100.0 - liq_long) if liq_long is not None else None,
-            "btc_dom": btc_dom,
-            "eth_dom": eth_dom,
-            "rest_dom": rest_dom,
-            "adv_pct": (100.0 * adv / breadth_n) if breadth_n else None,
-            "dec_pct": (100.0 * dec / breadth_n) if breadth_n else None,
-        },
     }
