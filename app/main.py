@@ -15,6 +15,7 @@ from . import formatters, ryo
 from .claw import answer as claw_answer
 from .services import (
     load_analytics,
+    load_insights,
     load_overview,
     load_ryo_catalog,
     load_ryo_whoami,
@@ -89,7 +90,7 @@ async def analytics_page(request: Request) -> HTMLResponse:
 
 @app.get("/insights", response_class=HTMLResponse)
 async def insights_page(request: Request) -> HTMLResponse:
-    data = await load_overview()
+    data = await load_insights()
     return templates.TemplateResponse(request, "insights.html", _ctx(request, nav="insights", data=data))
 
 

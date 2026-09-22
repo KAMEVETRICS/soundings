@@ -54,49 +54,21 @@ def _tape_label(crowding: str | None, percentile: float | None) -> str:
     return "normal"
 
 
+_GAPS: dict[tuple[str, str], tuple[str, str, str]] = {
+    ("greed", "uncrowded"): ("crowd_hotter_than_tape", "Crowd hotter than tape", "Fear & Greed is greedy. BTC funding is not crowded."),
+    ("greed", "normal"): ("crowd_hotter_than_tape", "Crowd hotter than tape", "Fear & Greed is greedy. BTC funding is not crowded."),
+    ("greed", "crowded"): ("aligned_froth", "Aligned froth", "Fear & Greed is greedy. Funding is crowded."),
+    ("fear", "crowded"): ("tape_hotter_than_crowd", "Tape hotter than crowd", "Fear & Greed is fearful. Funding is still crowded."),
+    ("fear", "uncrowded"): ("aligned_fear", "Aligned fear", "Fear & Greed is fearful. Funding is light."),
+    ("fear", "normal"): ("crowd_colder_than_tape", "Crowd colder than tape", "Fear & Greed is fearful. Funding is normal."),
+}
+_GAP_GREED = ("crowd_hot", "Crowd hot", "Fear & Greed is greedy.")
+_GAP_NEUTRAL = ("aligned_neutral", "Mid-range", "Crowd and funding are both mid-range.")
+
+
 def _gap(crowd: str, tape: str) -> dict[str, str]:
-    """Surface Fear & Greed versus BTC funding underneath."""
-    if crowd == "greed" and tape in {"normal", "uncrowded"}:
-        return {
-            "code": "crowd_hotter_than_tape",
-            "label": "Crowd hotter than tape",
-            "body": "Fear & Greed is greedy. BTC funding is not crowded.",
-        }
-    if crowd == "greed" and tape == "crowded":
-        return {
-            "code": "aligned_froth",
-            "label": "Aligned froth",
-            "body": "Fear & Greed is greedy. Funding is crowded.",
-        }
-    if crowd == "fear" and tape == "crowded":
-        return {
-            "code": "tape_hotter_than_crowd",
-            "label": "Tape hotter than crowd",
-            "body": "Fear & Greed is fearful. Funding is still crowded.",
-        }
-    if crowd == "fear" and tape == "uncrowded":
-        return {
-            "code": "aligned_fear",
-            "label": "Aligned fear",
-            "body": "Fear & Greed is fearful. Funding is light.",
-        }
-    if crowd == "fear" and tape == "normal":
-        return {
-            "code": "crowd_colder_than_tape",
-            "label": "Crowd colder than tape",
-            "body": "Fear & Greed is fearful. Funding is normal.",
-        }
-    if crowd == "greed":
-        return {
-            "code": "crowd_hot",
-            "label": "Crowd hot",
-            "body": "Fear & Greed is greedy.",
-        }
-    return {
-        "code": "aligned_neutral",
-        "label": "Mid-range",
-        "body": "Crowd and funding are both mid-range.",
-    }
+    code, label, body = _GAPS.get((crowd, tape)) or (_GAP_GREED if crowd == "greed" else _GAP_NEUTRAL)
+    return {"code": code, "label": label, "body": body}
 
 
 def positioning_stress(

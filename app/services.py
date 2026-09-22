@@ -5,14 +5,11 @@ import time
 from typing import Any
 
 from . import analytics, config, extract, insights, ryo
+from .store import cache_get, cache_put
 from .tickers import parse_symbol
 from .truenorth import TrueNorth, market_pack
 
-_PACK: dict[str, tuple[float, tuple[dict[str, Any], ...]]] = {}
-_PACK_LOCK = asyncio.Lock()
-_PACK_REFRESHING: set[str] = set()
-_TN: tuple[float, dict[str, Any]] | None = None
-_TN_REFRESHING = False
+_TN_KEY = "truenorth-market"
 
 
 def setup() -> dict[str, Any]:
@@ -35,83 +32,39 @@ def _derived_book(overview: dict[str, Any]) -> tuple[Any, Any, float | None, flo
     return vol, cap, turnover, rest_dom
 
 
-def _kick_truenorth() -> None:
-    global _TN_REFRESHING
-    if _TN_REFRESHING:
-        return
-    _TN_REFRESHING = True
-
-    async def _run() -> None:
-        global _TN, _TN_REFRESHING
-        try:
-            tn = TrueNorth(ryo.http())
-            second = await asyncio.wait_for(market_pack(tn), timeout=8)
-            _TN = (time.time(), second)
-        except Exception:
-            pass
-        finally:
-            _TN_REFRESHING = False
-
-    try:
-        asyncio.get_running_loop().create_task(_run())
-    except RuntimeError:
-        _TN_REFRESHING = False
-
-
-def _pack_key(scan_n: int, extra: str | None) -> str:
-    return f"{scan_n}:{extra or ''}"
-
-
-async def _fetch_market_live(scan_n: int, extra: str | None) -> tuple[dict[str, Any], ...]:
+async def _fetch_market(scan_n: int = 12) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     client = ryo.http()
-    jobs = [
+    overview_env, sentiment_env, scan_env = await asyncio.gather(
         ryo.call_tool(client, "market_overview", {}),
         ryo.call_tool(client, "monitor_market_sentiment_shift", {"time_window": "7d"}),
         ryo.call_tool(client, "scan_market", {"top_n": scan_n}),
-    ]
-    if extra:
-        jobs.append(ryo.call_tool(client, "analyze_token", {"symbol": extra}))
-    return tuple(await asyncio.gather(*jobs))
+    )
+    return overview_env, sentiment_env, scan_env
 
 
-def _kick_pack(scan_n: int, extra: str | None) -> None:
-    key = _pack_key(scan_n, extra)
-    if key in _PACK_REFRESHING:
-        return
-    _PACK_REFRESHING.add(key)
-
-    async def _run() -> None:
-        try:
-            live = await _fetch_market_live(scan_n, extra)
-            _PACK[key] = (time.time(), live)
-        except Exception:
-            pass
-        finally:
-            _PACK_REFRESHING.discard(key)
-
+def _tn_age(envelope: dict[str, Any]) -> float:
     try:
-        asyncio.get_running_loop().create_task(_run())
-    except RuntimeError:
-        _PACK_REFRESHING.discard(key)
+        return time.time() - float(envelope.get("fetched_at") or 0)
+    except (TypeError, ValueError):
+        return config.RYO_CACHE_TTL + 1
 
 
-async def _fetch_market(scan_n: int = 12, extra: str | None = None) -> tuple[dict[str, Any], ...]:
-    key = _pack_key(scan_n, extra)
-    hit = _PACK.get(key)
-    now = time.time()
-    if hit and now - hit[0] < config.RYO_CACHE_TTL:
-        return hit[1]
-    if hit and now - hit[0] < config.RYO_SWR_TTL:
-        _kick_pack(scan_n, extra)
-        return tuple({**env, "stale": True} for env in hit[1])
-    async with _PACK_LOCK:
-        hit = _PACK.get(key)
-        now = time.time()
-        if hit and now - hit[0] < config.RYO_CACHE_TTL:
-            return hit[1]
-        live = await _fetch_market_live(scan_n, extra)
-        _PACK[key] = (time.time(), live)
-        return live
+async def _second_book() -> dict[str, Any] | None:
+    if not config.truenorth_configured():
+        return None
+    hit = cache_get(_TN_KEY)
+    if hit and hit.get("result") and _tn_age(hit) < config.RYO_CACHE_TTL:
+        return hit["result"]
+    try:
+        fresh = await asyncio.wait_for(market_pack(TrueNorth(ryo.http())), timeout=8)
+    except Exception as exc:
+        if hit and hit.get("result"):
+            stale = dict(hit["result"])
+            stale["status"] = "stale"
+            return stale
+        return {"status": "unavailable", "fear_greed": None, "mvrv_z": None, "notes": [str(exc)]}
+    cache_put(_TN_KEY, {"fetched_at": time.time(), "result": fresh})
+    return fresh
 
 
 def _assemble_market(
@@ -128,7 +81,6 @@ def _assemble_market(
     chart = _volume_chart(scan_rows)
     vol, cap, turnover, rest_dom = _derived_book(overview)
     stress = analytics.positioning_stress(overview, sentiment, btc)
-    cards = insights.gap_cards(stress) + insights.market_cards(overview, sentiment, scan_rows)
     return {
         "ok": True,
         "overview": overview,
@@ -142,7 +94,6 @@ def _assemble_market(
         "rest_dominance": rest_dom,
         "most_active": chart[0] if chart else None,
         "stress": stress,
-        "insights": cards,
         "scan": scan_rows,
         "spikes": [r for r in scan_rows if r.get("spike")],
         "stale": bool(overview_env.get("stale") or sentiment_env.get("stale") or scan_env.get("stale")),
@@ -156,6 +107,18 @@ async def load_overview() -> dict[str, Any]:
         return {"ok": False, "error": "RYO_MCP_KEY is not set."}
     overview_env, sentiment_env, scan_env = await _fetch_market(12)
     return _assemble_market(overview_env, sentiment_env, scan_env)
+
+
+async def load_insights() -> dict[str, Any]:
+    pack = await load_overview()
+    if not pack.get("ok"):
+        return pack
+    pack["insights"] = insights.gap_cards(pack.get("stress")) + insights.market_cards(
+        pack.get("overview") or {},
+        pack.get("sentiment") or {},
+        pack.get("scan") or [],
+    )
+    return pack
 
 
 async def load_screener(top_n: int = 12) -> dict[str, Any]:
@@ -243,23 +206,16 @@ async def load_token(symbol: str) -> dict[str, Any]:
 
 
 async def load_analytics() -> dict[str, Any]:
-    global _TN
     if not config.ryo_configured():
         return {"ok": False, "error": "RYO_MCP_KEY is not set."}
-    overview_env, sentiment_env, scan_env = await _fetch_market(12)
-    btc_env = await ryo.call_tool(ryo.http(), "analyze_token", {"symbol": "BTC"})
+    (overview_env, sentiment_env, scan_env), btc_env = await asyncio.gather(
+        _fetch_market(12),
+        ryo.call_tool(ryo.http(), "analyze_token", {"symbol": "BTC"}),
+    )
     btc = extract.extract_token(btc_env, fallback_symbol="BTC")
     pack = _assemble_market(overview_env, sentiment_env, scan_env, btc=btc)
-    second: dict[str, Any] | None = None
-    if config.truenorth_configured():
-        now = time.time()
-        if _TN and now - _TN[0] < config.RYO_CACHE_TTL:
-            second = _TN[1]
-        else:
-            second = _TN[1] if _TN else None
-            _kick_truenorth()
     pack["btc"] = btc
-    pack["second_book"] = second
+    pack["second_book"] = await _second_book()
     pack["headline"] = ((pack.get("stress") or {}).get("gap") or {}).get("label") or pack.get("headline")
     pack["stale"] = bool(pack.get("stale") or btc_env.get("stale"))
     return pack
