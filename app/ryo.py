@@ -181,7 +181,7 @@ async def call_tool(
     allow_stale: bool = True,
     force: bool = False,
 ) -> dict[str, Any]:
-    """Call a RYO tool. Memory+disk cache for RYO_CACHE_TTL; last-good served while a refresh runs."""
+    """Fresh for RYO_CACHE_TTL. Older last-good is served while a refresh runs."""
     arguments = arguments or {}
     key = _cache_key(tool, arguments)
     cached = None if force else _lookup(key)

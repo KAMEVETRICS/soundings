@@ -1,12 +1,6 @@
-"""Rebuild the RYO-CHAN Project Submission Form for Soundings.
+"""Redraw the submission PDF. The Discord file is not a fillable form.
 
-The Discord blank is not reachable from this machine. The copy floating on
-GitHub is another team's filled PDF (not fillable). This script redraws the
-same A4 layout with Soundings answers.
-
-Edit EMAIL and DEMO_VIDEO below, then:
-
-    python scripts/fill_submission_form.py
+Edit EMAIL and DEMO_VIDEO, then run this file.
 """
 
 from __future__ import annotations

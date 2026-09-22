@@ -10,7 +10,7 @@ def _clip(value: float, lo: float = -3.0, hi: float = 3.0) -> float:
 
 
 def z_from_center(value: Any, center: float = 50.0, scale: float = 25.0) -> float | None:
-    """Map a 0–100 reading onto a z-like unit. Live approximation, not a rolling z-score."""
+    """Not a rolling z-score."""
     number = as_number(value)
     if number is None or scale == 0:
         return None
@@ -76,10 +76,7 @@ def positioning_stress(
     sentiment: dict[str, Any] | None,
     btc: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Live positioning-stress pack from this RYO snapshot.
-
-    Weights: 0.5 Fear & Greed, 0.5 funding, 0 stretch. Not a rolling z, not a trade, not OI.
-    """
+    """Stretch is shown at weight 0. This is not open interest."""
     overview = overview or {}
     sentiment = sentiment or {}
     funding = sentiment.get("funding") if isinstance(sentiment.get("funding"), dict) else {}

@@ -8,7 +8,7 @@ SHAPE = re.compile(r"^[A-Z][A-Z0-9]{1,11}$")
 
 
 def parse_symbol(raw: str | None) -> dict[str, Any]:
-    """Normalize a user ticker. Shape only — no market call."""
+    """Shape only. No market call."""
     if raw is None:
         return {"ok": True, "symbol": None, "empty": True}
     text = str(raw).strip().upper()

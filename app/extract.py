@@ -4,7 +4,7 @@ from typing import Any
 
 
 def dig(obj: Any, *paths: str) -> Any:
-    """Return the first present value among dotted paths. Missing is None, never 0."""
+    """Missing is None, never 0."""
     for path in paths:
         cur: Any = obj
         ok = True
@@ -167,7 +167,7 @@ def extract_candidates(scan_envelope: dict[str, Any] | None, overview_envelope: 
     if candidates:
         return candidates[:16]
 
-    # Fallback: movers from market_overview, still real evidence, never invented.
+    # Overview movers are live rows, not a fill-in.
     overview_data = data_of(overview_envelope)
     mover_rows: list[Any] = []
     for key in ("gainers", "top_gainers", "topGainers", "movers", "top_movers"):

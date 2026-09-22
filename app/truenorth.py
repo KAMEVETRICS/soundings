@@ -90,7 +90,7 @@ class TrueNorth:
 
 
 async def market_pack(tn: TrueNorth) -> dict[str, Any]:
-    """Independent market weather. Failure is recorded, never invented."""
+    """On failure, record the miss. Do not invent a number."""
     out: dict[str, Any] = {"status": "ok", "fear_greed": None, "mvrv_z": None, "notes": []}
     try:
         fg = await tn.call("fear_greed", {"limit": 8})
