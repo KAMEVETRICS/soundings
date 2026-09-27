@@ -54,7 +54,7 @@
           </li>
           <li>7-day change
             {% if s.crowd.fear_greed_delta is not none %}{{ s.crowd.fear_greed_delta | round(0) }} pts{% else %}—{% endif %}
-            · {{ "7d shift" if s.crowd.material_shift else "7d stable" }}
+            {% if s.crowd.material_shift is sameas true %}· 7d shift{% elif s.crowd.material_shift is sameas false %}· 7d stable{% endif %}
           </li>
           <li>7d ago {{ s.crowd.fear_greed_7d_ago if s.crowd.fear_greed_7d_ago is not none else "—" }}</li>
         </ul>
@@ -62,9 +62,10 @@
       <article class="surface-card">
         <h2 class="page">Tape · how it is positioned</h2>
         <ul class="gates">
-          <li>BTC funding crowding <strong>{{ data.sentiment.funding.crowding or "—" }}</strong>
+          <li>BTC funding <strong>{{ s.tape.label if s.tape.label != "unknown" else "—" }}</strong>
             · 90d pctl
             {% if data.sentiment.funding.percentile_90d is not none %}{{ "%.0f"|format(data.sentiment.funding.percentile_90d) }}{% else %}—{% endif %}
+            <span class="mute">(≥ 70 crowded, ≤ 30 uncrowded{% if data.sentiment.funding.crowding %}; RYO flag {{ data.sentiment.funding.crowding }}{% endif %})</span>
           </li>
           <li>7d mean
             {% if data.sentiment.funding.mean_7d_bps is not none %}{{ "%.3f"|format(data.sentiment.funding.mean_7d_bps) }} bps{% else %}—{% endif %}

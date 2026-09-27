@@ -21,6 +21,28 @@ def setup() -> dict[str, Any]:
     }
 
 
+def _feed_state(envelopes: dict[str, dict[str, Any] | None]) -> dict[str, list[str]]:
+    """Which RYO feeds failed on this request, for the page banner.
+
+    last_good: the call failed, so the page shows the last good reply (with its time).
+    down: nothing usable from RYO; those fields stay blank.
+    A routine background refresh (stale inside the SWR window) is neither.
+    """
+    last_good: list[str] = []
+    down: list[str] = []
+    for name, env in envelopes.items():
+        if env is None:
+            continue
+        result = env.get("result")
+        usable = isinstance(result, dict) and result.get("status") != "unavailable"
+        if env.get("error") and usable:
+            as_of = str(result.get("as_of") or "")[:16].replace("T", " ")
+            last_good.append(f"{name} (from {as_of} UTC)" if as_of else name)
+        elif not usable:
+            down.append(name)
+    return {"last_good": last_good, "down": down}
+
+
 def _derived_book(overview: dict[str, Any]) -> tuple[Any, Any, float | None, float | None]:
     totals = overview.get("totals") if isinstance(overview.get("totals"), dict) else {}
     vol = totals.get("total_volume_24h_usd")
@@ -97,6 +119,7 @@ def _assemble_market(
         "scan": scan_rows,
         "spikes": [r for r in scan_rows if r.get("spike")],
         "stale": bool(overview_env.get("stale") or sentiment_env.get("stale") or scan_env.get("stale")),
+        "feeds": _feed_state({"overview": overview_env, "sentiment": sentiment_env, "scan": scan_env}),
         "headline": overview.get("headline") or sentiment.get("headline"),
         "as_of": overview.get("as_of") or sentiment.get("as_of"),
     }
@@ -113,10 +136,12 @@ async def load_insights() -> dict[str, Any]:
     pack = await load_overview()
     if not pack.get("ok"):
         return pack
-    pack["insights"] = insights.gap_cards(pack.get("stress")) + insights.market_cards(
+    stress = pack.get("stress") or {}
+    pack["insights"] = insights.gap_cards(stress) + insights.market_cards(
         pack.get("overview") or {},
         pack.get("sentiment") or {},
         pack.get("scan") or [],
+        tape=(stress.get("tape") or {}).get("label"),
     )
     return pack
 
@@ -136,6 +161,7 @@ async def load_screener(top_n: int = 12) -> dict[str, Any]:
         "headline": meta.get("headline") or extract.summary_of(scan_env).get("headline"),
         "selection_method": meta.get("selection_method"),
         "stale": bool(scan_env.get("stale")),
+        "feeds": _feed_state({"scan": scan_env}),
         "status": extract.status_of(scan_env),
         "as_of": meta.get("as_of"),
         "spikes": [r for r in table if r.get("spike")],
@@ -201,6 +227,7 @@ async def load_token(symbol: str) -> dict[str, Any]:
         },
         "insights": insights.token_cards(token, deep),
         "stale": bool(analyze_env.get("stale") or (deep_env or {}).get("stale")),
+        "feeds": _feed_state({"token": analyze_env, "deep analysis": deep_env}),
         "as_of": token.get("as_of") or deep.get("as_of"),
     }
 
@@ -218,6 +245,9 @@ async def load_analytics() -> dict[str, Any]:
     pack["second_book"] = await _second_book()
     pack["headline"] = ((pack.get("stress") or {}).get("gap") or {}).get("label") or pack.get("headline")
     pack["stale"] = bool(pack.get("stale") or btc_env.get("stale"))
+    btc_feed = _feed_state({"BTC": btc_env})
+    for k in ("last_good", "down"):
+        pack["feeds"][k] += btc_feed[k]
     return pack
 
 
@@ -274,7 +304,7 @@ def _annotate_heat(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _screener_rows(scan_env: dict[str, Any]) -> list[dict[str, Any]]:
     table = []
-    for row in extract.extract_candidates(scan_env, None):
+    for row in extract.extract_candidates(scan_env):
         raw = row.get("raw") if isinstance(row.get("raw"), dict) else {}
         vol = raw.get("volume_24h_usd")
         cap = raw.get("market_cap_usd")

@@ -8,13 +8,14 @@
     <section class="kpis">
       <article class="card">
         <label>Fear &amp; Greed</label>
-        <p class="val">{{ data.sentiment.fear_greed if data.sentiment.fear_greed is not none else data.overview.fear_greed }}</p>
-        <p class="hint mute">{{ "7d shift" if data.sentiment.material_shift else "7d stable" }}</p>
+        <p class="val">{% if data.sentiment.fear_greed is not none %}{{ data.sentiment.fear_greed | int }}{% elif data.overview.fear_greed is not none %}{{ data.overview.fear_greed | int }}{% else %}—{% endif %}</p>
+        <p class="hint mute">{% if data.sentiment.material_shift is sameas true %}7d shift{% elif data.sentiment.material_shift is sameas false %}7d stable{% else %}—{% endif %}</p>
       </article>
       <article class="card alt">
         <label>BTC funding 7d</label>
-        <p class="val" style="font-size:1.2rem">{{ data.sentiment.funding.crowding or "—" }}</p>
-        <p class="hint mute">{% if data.sentiment.funding.percentile_90d is not none %}p{{ "%.0f"|format(data.sentiment.funding.percentile_90d) }}{% else %}—{% endif %}</p>
+        {% set tape = data.stress.tape.label if data.stress else "unknown" %}
+        <p class="val" style="font-size:1.2rem">{{ tape if tape != "unknown" else "—" }}</p>
+        <p class="hint mute">{% if data.sentiment.funding.percentile_90d is not none %}p{{ "%.0f"|format(data.sentiment.funding.percentile_90d) }} of 90d{% else %}—{% endif %}{% if data.sentiment.funding.crowding %} · RYO flag {{ data.sentiment.funding.crowding }}{% endif %}</p>
       </article>
       <article class="card">
         <label>BTC liquidations</label>

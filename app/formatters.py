@@ -48,13 +48,6 @@ def usd_compact(value: Any) -> str:
     return f"{sign}${body}"
 
 
-def compact(value: Any, digits: int = 2) -> str:
-    number = _num(value)
-    if number is None:
-        return "—"
-    return f"{number:.{digits}f}"
-
-
 def _num(value: Any) -> float | None:
     if value is None or value == "":
         return None

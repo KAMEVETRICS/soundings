@@ -26,10 +26,10 @@
       <article class="card alt">
         <label>Market breadth</label>
         <div class="pair">
-          <p class="val up">{{ data.gainers | length }}</p>
-          <p class="val down">{{ data.losers | length }}</p>
+          <p class="val up">{{ data.overview.advancing if data.overview.advancing is not none else "—" }}</p>
+          <p class="val down">{{ data.overview.declining if data.overview.declining is not none else "—" }}</p>
         </div>
-        <p class="hint mute">gainers / losers</p>
+        <p class="hint mute">advancing / declining{% if data.overview.universe %} · n={{ data.overview.universe }}{% endif %}</p>
       </article>
     </section>
 

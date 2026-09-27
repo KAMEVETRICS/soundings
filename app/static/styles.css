@@ -303,3 +303,7 @@ footer.slim { margin-top: 3rem; color: var(--mute); font-size: 0.75rem; }
   .kpis, .split, .horizons { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* RYO feed status: shown only when a feed failed on this request */
+.feed-banner { margin: 0 0 1.2rem; font-size: 0.8rem; line-height: 1.5; }
+.gates .mute { color: var(--mute); font-size: 0.85em; }

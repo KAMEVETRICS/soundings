@@ -2,14 +2,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from .extract import as_number
+from .extract import as_number, first_number
 
 
-def market_cards(overview: dict[str, Any], sentiment: dict[str, Any], scan_rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+def market_cards(
+    overview: dict[str, Any],
+    sentiment: dict[str, Any],
+    scan_rows: list[dict[str, Any]],
+    *,
+    tape: str | None = None,
+) -> list[dict[str, str]]:
+    """tape is the Analytics tape label (analytics._tape_label: 90d funding percentile >= 70
+    is crowded). Cards use it, not RYO's own crowding flag, so they never contradict the gap."""
     cards: list[dict[str, str]] = []
     totals = overview.get("totals") if isinstance(overview.get("totals"), dict) else {}
-    vol = as_number(totals.get("total_volume_24h_usd")) or as_number(overview.get("total_volume_24h_usd"))
-    cap = as_number(totals.get("total_market_cap_usd")) or as_number(overview.get("total_market_cap_usd"))
+    vol = first_number(totals.get("total_volume_24h_usd"), overview.get("total_volume_24h_usd"))
+    cap = first_number(totals.get("total_market_cap_usd"), overview.get("total_market_cap_usd"))
     if vol is not None and cap not in (None, 0):
         turn = vol / cap
         cards.append(
@@ -52,21 +60,14 @@ def market_cards(overview: dict[str, Any], sentiment: dict[str, Any], scan_rows:
             }
         )
     fund = sentiment.get("funding") or {}
-    if (fund.get("crowding") or "") == "crowded" and fg is not None and fg >= 65:
+    pctl = as_number(fund.get("percentile_90d"))
+    # Greed with crowded or uncrowded funding is already the gap card; this covers 65-69.
+    if tape == "crowded" and fg is not None and 65 <= fg < 70:
+        pctl_txt = f" ({pctl:.0f}th percentile of 90 days)" if pctl is not None else ""
         cards.append(
             {
-                "title": "Crowded greed",
-                "body": "Funding is crowded. Fear & Greed is elevated.",
-                "tone": "warn",
-            }
-        )
-    if fg is not None and fg >= 70 and (fund.get("crowding") or "") == "normal":
-        pctl = as_number(fund.get("percentile_90d"))
-        pctl_txt = f" Funding sits at the {pctl:.0f}th percentile of 90 days." if pctl is not None else ""
-        cards.append(
-            {
-                "title": "Surface heat, quiet book",
-                "body": f"Fear & Greed {fg:.0f} greed. BTC funding crowding normal.{pctl_txt}",
+                "title": "Crowded funding, warm crowd",
+                "body": f"BTC funding is crowded{pctl_txt}. Fear & Greed {fg:.0f}, just under greed.",
                 "tone": "warn",
             }
         )
@@ -127,9 +128,8 @@ def market_cards(overview: dict[str, Any], sentiment: dict[str, Any], scan_rows:
     if spikes:
         names = ", ".join(r["symbol"] for r in spikes[:4] if r.get("symbol"))
         cards.append({"title": "Spikes", "body": f"{names} — turnover ≥ 1 or a ≥80% day.", "tone": "warn"})
-    crowding = fund.get("crowding") or "normal"
-    pressure = liq.get("pressure") or "normal"
-    if crowding == "normal" and pressure == "normal" and sentiment.get("material_shift") is False:
+    pressure = liq.get("pressure")
+    if tape == "normal" and pressure == "normal" and sentiment.get("material_shift") is False:
         cards.append(
             {
                 "title": "No material stress",

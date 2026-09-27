@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Space+Grotesk:wght@500;700&family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Space+Grotesk:wght@500;700&family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" /></noscript>
-  <link rel="stylesheet" href="/static/styles.css?v=14" />
+  <link rel="stylesheet" href="/static/styles.css?v=15" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -32,6 +32,13 @@
       <div class="sys"><span class="dot"></span> {{ "systems operational" if setup.ryo else "RYO key missing" }}</div>
     </aside>
     <div class="content" id="main">
+      {% set feeds = data.feeds if (data is defined and data and data.feeds) else none %}
+      {% if feeds and (feeds.last_good or feeds.down) %}
+      <p class="banner warn feed-banner" role="status">
+        {% if feeds.last_good %}RYO is not answering for {{ feeds.last_good | join(", ") }}. Showing the last good reading.{% endif %}
+        {% if feeds.down %}No data from RYO for {{ feeds.down | join(", ") }} right now. Those fields stay blank.{% endif %}
+      </p>
+      {% endif %}
       {% block main %}{% endblock %}
       <footer class="slim"><a href="/api">API</a></footer>
     </div>

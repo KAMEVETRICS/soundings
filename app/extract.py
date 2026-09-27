@@ -43,6 +43,15 @@ def as_number(value: Any) -> float | None:
     return None
 
 
+def first_number(*values: Any) -> float | None:
+    """First value that parses as a number. 0 counts; only missing is skipped."""
+    for value in values:
+        number = as_number(value)
+        if number is not None:
+            return number
+    return None
+
+
 def as_text(value: Any) -> str | None:
     if value is None:
         return None
@@ -148,7 +157,7 @@ def extract_symbol(row: Any) -> str | None:
     return text.split("/")[0].split("-")[0].strip().upper()
 
 
-def extract_candidates(scan_envelope: dict[str, Any] | None, overview_envelope: dict[str, Any] | None) -> list[dict[str, Any]]:
+def extract_candidates(scan_envelope: dict[str, Any] | None) -> list[dict[str, Any]]:
     rows = _iter_rows(data_of(scan_envelope))
     if not rows:
         result = result_of(scan_envelope) or {}
@@ -164,24 +173,7 @@ def extract_candidates(scan_envelope: dict[str, Any] | None, overview_envelope: 
         if isinstance(row, dict):
             note = as_text(dig(row, "reason", "why", "note", "thesis", "summary", "comment"))
         candidates.append({"symbol": symbol, "source": "scan_market", "note": note, "raw": row if isinstance(row, dict) else {"value": row}})
-    if candidates:
-        return candidates[:16]
-
-    # Overview movers are live rows, not a fill-in.
-    overview_data = data_of(overview_envelope)
-    mover_rows: list[Any] = []
-    for key in ("gainers", "top_gainers", "topGainers", "movers", "top_movers"):
-        block = overview_data.get(key)
-        mover_rows.extend(_iter_rows(block) if not isinstance(block, list) else block)
-    for row in mover_rows:
-        symbol = extract_symbol(row)
-        if not symbol or symbol in seen:
-            continue
-        seen.add(symbol)
-        candidates.append({"symbol": symbol, "source": "market_overview.movers", "note": "fallback from overview movers after scan was empty", "raw": row if isinstance(row, dict) else {"value": row}})
-        if len(candidates) >= 8:
-            break
-    return candidates
+    return candidates[:16]
 
 
 def extract_overview(envelope: dict[str, Any] | None) -> dict[str, Any]:
@@ -191,8 +183,8 @@ def extract_overview(envelope: dict[str, Any] | None) -> dict[str, Any]:
     sentiment = data.get("sentiment") if isinstance(data.get("sentiment"), dict) else {}
     details = market.get("breadth_details") if isinstance(market.get("breadth_details"), dict) else {}
     regime = dig(data, "regime", "market_regime", "phase")
-    fear = as_number(dig(sentiment, "fear_greed_index", "value", "score")) or as_number(dig(data, "fear_greed_index"))
-    fear_label = as_text(dig(sentiment, "label")) 
+    fear = first_number(dig(sentiment, "fear_greed_index", "value", "score"), dig(data, "fear_greed_index"))
+    fear_label = as_text(dig(sentiment, "label"))
     advancing = as_number(details.get("advancing"))
     declining = as_number(details.get("declining"))
     unchanged = as_number(details.get("unchanged"))
@@ -221,7 +213,7 @@ def extract_overview(envelope: dict[str, Any] | None) -> dict[str, Any]:
         "advancing": int(advancing) if advancing is not None else None,
         "declining": int(declining) if declining is not None else None,
         "unchanged": int(unchanged) if unchanged is not None else None,
-        "universe": int(as_number(details.get("universe_size")) or 0) or None,
+        "universe": int(universe) if (universe := as_number(details.get("universe_size"))) else None,
         "totals": market or None,
         "availability": result.get("availability") if isinstance(result.get("availability"), dict) else None,
         "warnings": warnings_of(envelope),
@@ -314,11 +306,11 @@ def extract_token(envelope: dict[str, Any] | None, fallback_symbol: str | None =
     )
     perf = data.get("performance") if isinstance(data.get("performance"), dict) else {}
     verdict_raw = dig(data, "verdict", "intelligence.verdict", "market_intelligence.verdict", "bias")
-    price = as_number(dig(market, "price_usd", "price", "usd", "last", "close")) or as_number(dig(data, "price_usd", "price"))
+    price = first_number(dig(market, "price_usd", "price", "usd", "last", "close"), dig(data, "price_usd", "price"))
     change_1h = as_number(dig(perf, "change_1h_pct", "h1", "1h", "change_1h"))
     change_24h = as_number(dig(perf, "change_24h_pct", "h24", "24h", "change_24h"))
     change_7d = as_number(dig(perf, "change_7d_pct", "d7", "7d", "change_7d"))
-    change_30d = as_number(dig(perf, "change_30d_pct", "d30", "30d", "change_30d", "momentum_30d_pct")) or as_number(dig(tech, "momentum_30d_pct"))
+    change_30d = first_number(dig(perf, "change_30d_pct", "d30", "30d", "change_30d", "momentum_30d_pct"), dig(tech, "momentum_30d_pct"))
     rsi_14 = as_number(dig(tech, "rsi_14", "rsi"))
     atr_14_pct = as_number(dig(tech, "atr_14_pct", "atr_pct"))
     atr_14 = as_number(dig(tech, "atr_14", "atr"))
@@ -336,7 +328,7 @@ def extract_token(envelope: dict[str, Any] | None, fallback_symbol: str | None =
     dilution = ((fdv / mcap) - 1.0) if fdv is not None and mcap not in (None, 0) else None
     measured = {
         "name": name,
-        "rank": as_number(asset.get("rank")) or as_number(dig(data, "asset.rank")),
+        "rank": first_number(asset.get("rank"), dig(data, "asset.rank")),
         "chain": as_text(asset.get("chain")),
         "contract": as_text(asset.get("contract")),
         "price": price,
