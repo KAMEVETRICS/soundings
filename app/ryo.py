@@ -18,7 +18,8 @@ _CLIENT: httpx.AsyncClient | None = None
 _MEM: dict[str, dict[str, Any]] = {}
 _REFRESHING: set[str] = set()
 _TASKS: set[asyncio.Task] = set()  # asyncio keeps only weak refs to tasks; hold them until done
-_INFLIGHT: dict[str, asyncio.Future] = {}  # one RYO call per cache key at a time
+_INFLIGHT: dict[str, asyncio.Task] = {}  # one RYO call per cache key at a time
+_DOWN: dict[str, dict[str, Any]] = {}  # key -> last failure (memory only), so outages answer instantly
 
 
 def bind_client(client: httpx.AsyncClient | None) -> None:
@@ -248,14 +249,63 @@ async def _fetch(client: httpx.AsyncClient, tool: str, arguments: dict[str, Any]
     }
 
 
-async def _fetch_once(client: httpx.AsyncClient, tool: str, arguments: dict[str, Any], key: str) -> dict[str, Any]:
+def _failure(tool: str, arguments: dict[str, Any], message: str, code: str | None, status: int | None = None, trace: str | None = None) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "stale": False,
+        "tool": tool,
+        "arguments": arguments,
+        "fetched_at": time.time(),
+        "error": {"message": message, "code": code, "status": status, "trace": trace},
+        "result": None,
+    }
+
+
+async def _fetch_and_settle(client: httpx.AsyncClient, tool: str, arguments: dict[str, Any], key: str) -> dict[str, Any] | None:
+    """Fetch, then update the cache. Returns the fresh envelope if it should be served, else None.
+
+    Runs to completion even if every waiting request has given up (see RYO_WAIT), so a slow
+    RYO reply still lands in the cache for the next visitor.
+    """
+    try:
+        envelope = await _fetch(client, tool, arguments)
+    except RyoError as exc:
+        _DOWN[key] = _failure(tool, arguments, str(exc), exc.code, exc.status, exc.trace)
+        return None
+    except Exception as exc:  # never leave an unretrieved exception in a background task
+        _DOWN[key] = _failure(tool, arguments, f"unexpected: {exc}", "unexpected")
+        return None
+    result = envelope["result"]
+    good = _last_good(key)
+    if _status(result) == "unavailable" or (good and _downgrade(result, good["result"])):
+        _DOWN[key] = envelope  # shown as blank (or last-good covers it); never written to disk
+        return None
+    _DOWN.pop(key, None)
+    return _remember(key, envelope)
+
+
+def _fetch_once(client: httpx.AsyncClient, tool: str, arguments: dict[str, Any], key: str) -> asyncio.Task:
     """Concurrent callers for the same key share one RYO request."""
-    future = _INFLIGHT.get(key)
-    if future is None:
-        future = asyncio.ensure_future(_fetch(client, tool, arguments))
-        _INFLIGHT[key] = future
-        future.add_done_callback(lambda _f: _INFLIGHT.pop(key, None))
-    return await asyncio.shield(future)
+    task = _INFLIGHT.get(key)
+    if task is None:
+        task = asyncio.ensure_future(_fetch_and_settle(client, tool, arguments, key))
+        _INFLIGHT[key] = task
+        _TASKS.add(task)
+        task.add_done_callback(lambda t: (_INFLIGHT.pop(key, None), _TASKS.discard(t)))
+    return task
+
+
+def _fallback(good: dict[str, Any] | None, down: dict[str, Any]) -> dict[str, Any]:
+    """What a page gets when RYO has nothing usable: last-good if we have it, else the failure."""
+    if good:
+        err = down.get("error") or {}
+        result = down.get("result") if isinstance(down.get("result"), dict) else {}
+        summary = result.get("summary")
+        headline = summary.get("headline") if isinstance(summary, dict) else summary
+        message = err.get("message") or headline or f"RYO returned {_status(result)}"
+        code = err.get("code") or "upstream_degraded"
+        return _serve_last_good(good, str(message), str(code), err.get("status"), err.get("trace"))
+    return {**down, "stale": False}
 
 
 async def call_tool(
@@ -270,6 +320,8 @@ async def call_tool(
 
     A failed or degraded reply never replaces last-good data: the last-good envelope is
     returned with stale=True (up to RYO_LASTGOOD_TTL old), and the reply is not cached.
+    A request waits at most RYO_WAIT for RYO; the call keeps running in the background.
+    A failure is remembered for RYO_DOWN_TTL so an outage costs one RYO call per key, not one per visit.
     """
     arguments = arguments or {}
     key = _cache_key(tool, arguments)
@@ -283,25 +335,19 @@ async def call_tool(
             return {**cached, "stale": True}
 
     good = _last_good(key) if allow_stale else None
-    try:
-        envelope = await _fetch_once(client, tool, arguments, key)
-    except RyoError as exc:
-        if good:
-            return _serve_last_good(good, str(exc), exc.code or "error", exc.status, exc.trace)
-        return {
-            "ok": False,
-            "stale": False,
-            "tool": tool,
-            "arguments": arguments,
-            "fetched_at": time.time(),
-            "error": {"message": str(exc), "code": exc.code, "status": exc.status, "trace": exc.trace},
-            "result": None,
-        }
+    down = _DOWN.get(key)
+    if down and not force:
+        if time.time() - float(down.get("fetched_at") or 0) >= config.RYO_DOWN_TTL:
+            _kick_refresh(client, tool, arguments, key)  # retry in the background, answer now
+        return _fallback(good, down)
 
-    result = envelope["result"]
-    if good and _downgrade(result, good["result"]):
-        headline = (result.get("summary") or {}).get("headline") if isinstance(result.get("summary"), dict) else result.get("summary")
-        return _serve_last_good(good, str(headline or f"RYO returned {_status(result)}"), "upstream_degraded")
-    if _status(result) == "unavailable":
-        return envelope  # shown as blank, never cached
-    return _remember(key, envelope)
+    task = _fetch_once(client, tool, arguments, key)
+    try:
+        fresh = await asyncio.wait_for(asyncio.shield(task), timeout=config.RYO_WAIT)
+    except asyncio.TimeoutError:
+        wait = f"RYO did not answer within {config.RYO_WAIT:g} s"
+        _DOWN.setdefault(key, _failure(tool, arguments, wait, "timeout"))
+        return _fallback(good, _DOWN[key])
+    if fresh is not None:
+        return fresh
+    return _fallback(good, _DOWN.get(key) or _failure(tool, arguments, "RYO returned nothing usable", "unavailable"))

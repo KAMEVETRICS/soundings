@@ -25,6 +25,10 @@ RYO_CACHE_TTL = float(os.getenv("RYO_CACHE_TTL", "180"))
 RYO_SWR_TTL = float(os.getenv("RYO_SWR_TTL", "900"))
 # How old last-good data may be and still stand in for a failed or degraded RYO reply.
 RYO_LASTGOOD_TTL = float(os.getenv("RYO_LASTGOOD_TTL", "172800"))
+# Longest a page waits on RYO before showing last-good or blanks (the call carries on in the background).
+RYO_WAIT = float(os.getenv("RYO_WAIT", "8"))
+# After a failure, answer from memory for this long before asking RYO again.
+RYO_DOWN_TTL = float(os.getenv("RYO_DOWN_TTL", "60"))
 # Cache files older than this are deleted. Must exceed RYO_LASTGOOD_TTL.
 CACHE_MAX_AGE = max(float(os.getenv("CACHE_MAX_AGE", "604800")), RYO_LASTGOOD_TTL)
 

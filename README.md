@@ -75,7 +75,7 @@ Weights: `0.5` Fear & Greed + `0.5` funding. Stretch is shown at weight `0`.
 ## How it works
 
 1. FastAPI calls RYO MCP REST (`/tools`, then the six research tools) with `RYO_MCP_KEY`.
-2. Successful payloads sit in a memory + disk TTL cache (`RYO_CACHE_TTL`, default 180s; refreshed in the background up to `RYO_SWR_TTL`). RYO answers outages with HTTP 200 and `status: unavailable`; those replies are never cached. A failed, unavailable or thinner `partial` reply falls back to last-good (up to `RYO_LASTGOOD_TTL`, 48h), marked `stale` and named in each page's `feeds` banner. Missing fields stay blank. Sidebar swaps the main pane so the chrome stays put.
+2. Successful payloads sit in a memory + disk TTL cache (`RYO_CACHE_TTL`, default 180s; refreshed in the background up to `RYO_SWR_TTL`). RYO answers outages with HTTP 200 and `status: unavailable`; those replies are never cached. A failed, unavailable or thinner `partial` reply falls back to last-good (up to `RYO_LASTGOOD_TTL`, 48h), marked `stale` and named in each page's `feeds` banner. A page waits at most `RYO_WAIT` (8s) for RYO; the call finishes in the background and fills the cache. A failure is remembered for `RYO_DOWN_TTL` (60s), so during an outage pages answer instantly and RYO gets one retry per feed per minute. Missing fields stay blank. Sidebar swaps the main pane so the chrome stays put.
 3. One market pack (`_fetch_market` → `_assemble_market`) feeds Overview, Analytics, Sentiment, and Insights. Token pages gather `analyze_token` + `deep_analysis`.
 4. Analytics derives **S** and the gap label from that pack. Optional TrueNorth Fear & Greed / MVRV is a second book, not a substitute for RYO.
 5. Claw may call OpenRouter/xAI and is only allowed to talk about the live evidence pack.

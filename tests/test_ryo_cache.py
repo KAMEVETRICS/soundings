@@ -18,10 +18,14 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "RYO_CACHE_TTL", 180.0)
     monkeypatch.setattr(config, "RYO_SWR_TTL", 900.0)
     monkeypatch.setattr(config, "RYO_LASTGOOD_TTL", 172800.0)
-    ryo._MEM.clear()
-    ryo._INFLIGHT.clear()
+    monkeypatch.setattr(config, "RYO_WAIT", 8.0)
+    monkeypatch.setattr(config, "RYO_DOWN_TTL", 60.0)
+    for state in (ryo._MEM, ryo._INFLIGHT, ryo._DOWN):
+        state.clear()
+    ryo._REFRESHING.clear()
     yield
-    ryo._MEM.clear()
+    for state in (ryo._MEM, ryo._INFLIGHT, ryo._DOWN):
+        state.clear()
 
 
 def _key():
@@ -32,12 +36,12 @@ def _seed(result, age):
     store.cache_put(_key(), {"ok": True, "stale": False, "tool": TOOL, "arguments": ARGS, "fetched_at": time.time() - age, "result": result})
 
 
-def _replies(monkeypatch, *results):
+def _replies(monkeypatch, *results, delay=0.01):
     calls = []
 
     async def fake(client, method, path, *, json_body=None, auth=True):
         calls.append(path)
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(delay)
         r = results[min(len(calls) - 1, len(results) - 1)]
         if isinstance(r, Exception):
             raise r
@@ -127,3 +131,76 @@ def test_cache_put_is_atomic_and_prunes(tmp_path):
     os.utime(old, (past, past))
     assert store.prune_cache(max_age=7 * 86400) == 1
     assert not old.exists() and (tmp_path / "k.json").exists()
+
+
+def test_hanging_ryo_answers_within_wait_with_last_good(monkeypatch):
+    monkeypatch.setattr(config, "RYO_WAIT", 0.05)
+    _seed(GOOD, age=10_000)
+    _replies(monkeypatch, GOOD, delay=5)
+
+    async def run():
+        t0 = time.monotonic()
+        env = await ryo.call_tool(None, TOOL, ARGS)
+        return env, time.monotonic() - t0
+
+    env, took = asyncio.run(run())
+    assert took < 1
+    assert env["stale"] is True and env["error"]["code"] == "timeout"
+
+
+def test_hanging_ryo_without_cache_is_blank_fast(monkeypatch):
+    monkeypatch.setattr(config, "RYO_WAIT", 0.05)
+    _replies(monkeypatch, GOOD, delay=5)
+
+    async def run():
+        t0 = time.monotonic()
+        env = await ryo.call_tool(None, TOOL, ARGS)
+        return env, time.monotonic() - t0
+
+    env, took = asyncio.run(run())
+    assert took < 1 and env["result"] is None and env["error"]["code"] == "timeout"
+
+
+def test_slow_reply_still_lands_in_cache_for_the_next_visitor(monkeypatch):
+    monkeypatch.setattr(config, "RYO_WAIT", 0.02)
+    _replies(monkeypatch, GOOD, delay=0.1)
+
+    async def run():
+        first = await ryo.call_tool(None, TOOL, ARGS)  # gives up waiting
+        await asyncio.sleep(0.2)  # the background call finishes
+        second = await ryo.call_tool(None, TOOL, ARGS)
+        return first, second
+
+    first, second = asyncio.run(run())
+    assert first["result"] is None
+    assert second["result"]["status"] == "ok" and second["stale"] is False
+    assert store.cache_get(_key())["result"]["status"] == "ok"
+
+
+def test_failure_is_remembered_so_visits_do_not_hit_ryo(monkeypatch):
+    calls = _replies(monkeypatch, DOWN)
+
+    async def run():
+        return [await ryo.call_tool(None, TOOL, ARGS) for _ in range(5)]
+
+    results = asyncio.run(run())
+    assert len(calls) == 1
+    assert all(r["result"]["status"] == "unavailable" for r in results)
+
+
+def test_after_down_ttl_answers_now_and_retries_in_background(monkeypatch):
+    monkeypatch.setattr(config, "RYO_DOWN_TTL", 0.05)
+    calls = _replies(monkeypatch, DOWN, GOOD)
+
+    async def run():
+        await ryo.call_tool(None, TOOL, ARGS)  # outage noted
+        await asyncio.sleep(0.1)  # memory of it expires
+        again = await ryo.call_tool(None, TOOL, ARGS)  # answered from memory, retry kicked off
+        await asyncio.sleep(0.1)
+        later = await ryo.call_tool(None, TOOL, ARGS)
+        return again, later
+
+    again, later = asyncio.run(run())
+    assert again["result"]["status"] == "unavailable"
+    assert len(calls) == 2
+    assert later["result"]["status"] == "ok"
