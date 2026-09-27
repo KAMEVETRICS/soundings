@@ -11,14 +11,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from . import formatters, ryo
+from . import formatters, ryo, store
+from .limits import rate_limit
 from .claw import answer as claw_answer
 from .services import (
     load_analytics,
     load_insights,
     load_overview,
     load_ryo_catalog,
-    load_ryo_whoami,
     load_screener,
     load_token,
     setup,
@@ -32,6 +32,7 @@ async def lifespan(_app: FastAPI):
         limits=httpx.Limits(max_keepalive_connections=8, max_connections=16),
     ) as client:
         ryo.bind_client(client)
+        store.prune_cache()
         try:
             yield
         finally:
@@ -44,6 +45,7 @@ templates.env.filters["pct"] = formatters.pct
 templates.env.filters["usd"] = formatters.usd_compact
 
 app = FastAPI(title="Soundings", version="0.3.0", lifespan=lifespan)
+app.middleware("http")(rate_limit)
 app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
 api = APIRouter(prefix="/api", tags=["data"])
 
@@ -112,7 +114,6 @@ def _api_index() -> dict[str, Any]:
         "endpoints": [
             "GET /api/health",
             "GET /api/catalog",
-            "GET /api/whoami",
             "GET /api/overview",
             "GET /api/analytics",
             "GET /api/screener?top_n=",
@@ -140,11 +141,6 @@ async def health() -> dict[str, Any]:
 @api.get("/catalog")
 async def api_catalog() -> JSONResponse:
     return _json(await load_ryo_catalog())
-
-
-@api.get("/whoami")
-async def api_whoami() -> JSONResponse:
-    return _json(await load_ryo_whoami())
 
 
 @api.get("/overview")

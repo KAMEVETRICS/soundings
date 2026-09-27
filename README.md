@@ -18,7 +18,7 @@ The Analytics desk answers one question: is Fear & Greed confirmed by BTC fundin
 
 JSON for every desk lives under `/api`. OpenAPI explorer: `/docs`.
 
-No fabricated prints. Last-good cache is labelled stale. Open interest is unavailable on this book; we do not invent it.
+No fabricated prints. When RYO fails, pages keep the last good reading and say so in a banner (which feed, and from when). Open interest is unavailable on this book; we do not invent it.
 
 Live: https://soundings.online/analytics
 
@@ -46,7 +46,6 @@ Slices of overview (totals, funding, gates, …) live **on the pack**, not as ex
 | GET | `/api` | Catalog |
 | GET | `/api/health` | Process + key flags |
 | GET | `/api/catalog` | Live RYO `/tools` list |
-| GET | `/api/whoami` | RYO identity, secrets stripped |
 | GET | `/api/overview` | Regime, totals, movers, stress, insights |
 | GET | `/api/analytics` | Crowd vs tape (S, gap, BTC RSI, optional TrueNorth F&G/MVRV) |
 | GET | `/api/screener?top_n=` | Ranked scan (1–16) |
@@ -76,10 +75,30 @@ Weights: `0.5` Fear & Greed + `0.5` funding. Stretch is shown at weight `0`.
 ## How it works
 
 1. FastAPI calls RYO MCP REST (`/tools`, then the six research tools) with `RYO_MCP_KEY`.
-2. Successful payloads sit in a memory + disk TTL cache (`RYO_CACHE_TTL`, default 180s; last-good served up to `RYO_SWR_TTL`). Failures keep last-good data and mark it stale. Missing fields stay blank. Sidebar swaps the main pane so the chrome stays put.
+2. Successful payloads sit in a memory + disk TTL cache (`RYO_CACHE_TTL`, default 180s; refreshed in the background up to `RYO_SWR_TTL`). RYO answers outages with HTTP 200 and `status: unavailable`; those replies are never cached. A failed, unavailable or thinner `partial` reply falls back to last-good (up to `RYO_LASTGOOD_TTL`, 48h), marked `stale` and named in each page's `feeds` banner. Missing fields stay blank. Sidebar swaps the main pane so the chrome stays put.
 3. One market pack (`_fetch_market` → `_assemble_market`) feeds Overview, Analytics, Sentiment, and Insights. Token pages gather `analyze_token` + `deep_analysis`.
 4. Analytics derives **S** and the gap label from that pack. Optional TrueNorth Fear & Greed / MVRV is a second book, not a substitute for RYO.
 5. Claw may call OpenRouter/xAI and is only allowed to talk about the live evidence pack.
+
+## Limits
+
+Everything shares one RYO key (60 calls/min) and one LLM key, so the app limits each visitor IP
+(uvicorn must run with `--proxy-headers` behind the reverse proxy so it sees real IPs):
+
+| What | Default | Env |
+| --- | --- | --- |
+| Any page or API call | 120 / min | `RATE_LIMIT_PER_MIN` |
+| `/token/*`, `/api/token/*` | 12 / min per IP, 30 / min site-wide | `TOKEN_LIMIT_PER_MIN` |
+| `POST /api/claw` | 4 / min per IP, 300 / day site-wide | `CLAW_LIMIT_PER_MIN`, `CLAW_DAILY_LIMIT` |
+
+Tickers RYO has no price for are remembered for `UNKNOWN_TICKER_TTL` (1h) and not re-asked.
+Over the limit, the API returns 429 JSON with `Retry-After`.
+
+## Tests
+
+```powershell
+python -m pytest -q
+```
 
 ## Submission
 

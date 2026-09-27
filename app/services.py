@@ -181,11 +181,40 @@ async def _deep_or_none(client: Any, symbol: str) -> dict[str, Any] | None:
         return None
 
 
+_UNKNOWN: dict[str, float] = {}  # symbol -> time RYO last said it has no price
+_UNKNOWN_MAX = 5000
+
+
+def _unknown_ticker(symbol: str, status: str = "unavailable", warnings: list[str] | None = None) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": f"{symbol} is not a live ticker on this book.",
+        "code": "unknown_ticker",
+        "symbol": symbol,
+        "status": status,
+        "warnings": warnings or [],
+    }
+
+
+def _remember_unknown(symbol: str) -> None:
+    now = time.time()
+    if len(_UNKNOWN) >= _UNKNOWN_MAX:
+        for sym, seen in list(_UNKNOWN.items()):
+            if now - seen >= config.UNKNOWN_TICKER_TTL:
+                del _UNKNOWN[sym]
+        while len(_UNKNOWN) >= _UNKNOWN_MAX:
+            del _UNKNOWN[next(iter(_UNKNOWN))]
+    _UNKNOWN[symbol] = now
+
+
 async def load_token(symbol: str) -> dict[str, Any]:
     parsed = parse_symbol(symbol)
     if not parsed["ok"] or parsed.get("empty"):
         return {"ok": False, "error": parsed.get("error") or "Enter a ticker.", "code": parsed.get("code")}
     canon = parsed["symbol"]
+    seen = _UNKNOWN.get(canon)
+    if seen is not None and time.time() - seen < config.UNKNOWN_TICKER_TTL:
+        return _unknown_ticker(canon)  # asked recently; RYO had nothing
     client = ryo.http()
     analyze_env, deep_env = await asyncio.gather(
         ryo.call_tool(client, "analyze_token", {"symbol": canon}),
@@ -193,14 +222,9 @@ async def load_token(symbol: str) -> dict[str, Any]:
     )
     token = extract.extract_token(analyze_env, fallback_symbol=canon)
     if token.get("price") is None:
-        return {
-            "ok": False,
-            "error": f"{canon} is not a live ticker on this book.",
-            "code": "unknown_ticker",
-            "symbol": canon,
-            "status": extract.status_of(analyze_env),
-            "warnings": extract.warnings_of(analyze_env),
-        }
+        if analyze_env.get("ok") and extract.status_of(analyze_env) != "unavailable":
+            _remember_unknown(canon)  # RYO answered and had no price: a real miss, not an outage
+        return _unknown_ticker(canon, extract.status_of(analyze_env), extract.warnings_of(analyze_env))
     deep = extract.extract_deep(deep_env, canon)
     if not deep_env:
         deep["headline"] = "Deep pack timed out — showing the fast read."
@@ -268,18 +292,6 @@ async def load_ryo_catalog() -> dict[str, Any]:
         return {"ok": True, "source": "whoami", "catalog": {"tools": tools}, "tools": tools}
     tools = payload.get("tools") if isinstance(payload.get("tools"), list) else payload.get("data") or payload
     return {"ok": True, "source": "tools", "catalog": payload, "tools": tools}
-
-
-async def load_ryo_whoami() -> dict[str, Any]:
-    if not config.ryo_configured():
-        return {"ok": False, "error": "RYO_MCP_KEY is not set."}
-    try:
-        payload = await ryo.whoami(ryo.http())
-    except ryo.RyoError as exc:
-        return {"ok": False, "error": str(exc), "code": exc.code}
-    blocked = {"key", "token", "secret", "authorization", "api_key"}
-    safe = {k: v for k, v in payload.items() if str(k).lower() not in blocked}
-    return {"ok": True, "whoami": safe}
 
 
 def _annotate_heat(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
