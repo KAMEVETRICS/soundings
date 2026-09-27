@@ -17,6 +17,8 @@ MAX_ATTEMPTS = 2
 _CLIENT: httpx.AsyncClient | None = None
 _MEM: dict[str, dict[str, Any]] = {}
 _REFRESHING: set[str] = set()
+_TASKS: set[asyncio.Task] = set()  # asyncio keeps only weak refs to tasks; hold them until done
+_INFLIGHT: dict[str, asyncio.Future] = {}  # one RYO call per cache key at a time
 
 
 def bind_client(client: httpx.AsyncClient | None) -> None:
@@ -168,9 +170,92 @@ def _kick_refresh(client: httpx.AsyncClient, tool: str, arguments: dict[str, Any
             _REFRESHING.discard(key)
 
     try:
-        asyncio.get_running_loop().create_task(_run())
+        task = asyncio.get_running_loop().create_task(_run())
     except RuntimeError:
         _REFRESHING.discard(key)
+        return
+    _TASKS.add(task)
+    task.add_done_callback(_TASKS.discard)
+
+
+def _status(result: dict[str, Any] | None) -> str | None:
+    return result.get("status") if isinstance(result, dict) else None
+
+
+def _coverage(result: dict[str, Any]) -> int:
+    """How much a reply carries: sections RYO marks available, else non-empty data fields."""
+    availability = result.get("availability")
+    if isinstance(availability, dict) and availability:
+        return sum(1 for v in availability.values() if v == "available")
+    data = result.get("data")
+    if isinstance(data, dict):
+        return sum(1 for v in data.values() if v not in (None, "", [], {}))
+    return 0
+
+
+def _is_good(envelope: dict[str, Any] | None) -> bool:
+    """A cached envelope worth serving. Older caches may hold 'unavailable' replies: not good."""
+    return bool(
+        envelope
+        and envelope.get("ok")
+        and isinstance(envelope.get("result"), dict)
+        and _status(envelope["result"]) != "unavailable"
+    )
+
+
+def _last_good(key: str) -> dict[str, Any] | None:
+    hit = _lookup(key)
+    if _is_good(hit) and _age(hit) < config.RYO_LASTGOOD_TTL:
+        return hit
+    return None
+
+
+def _downgrade(fresh: dict[str, Any], good: dict[str, Any]) -> bool:
+    """True when a fresh reply carries less than the last good one.
+
+    RYO answers outages with HTTP 200 and status "unavailable" (or "partial" with most
+    sections missing). Those must not overwrite good data. A fresh "ok" always wins.
+    """
+    status = _status(fresh)
+    if status == "unavailable":
+        return True
+    if status == "partial" and _status(good) != "partial":
+        return _coverage(fresh) < _coverage(good)
+    return False
+
+
+def _serve_last_good(good: dict[str, Any], message: str, code: str, status: int | None = None, trace: str | None = None) -> dict[str, Any]:
+    return {**good, "ok": False, "stale": True, "error": {"message": message, "code": code, "status": status, "trace": trace}}
+
+
+async def _fetch(client: httpx.AsyncClient, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    payload, hdrs = await _request(client, "POST", f"/tools/{tool}/call", json_body=arguments)
+    result = payload.get("result", payload)
+    if not isinstance(result, dict):
+        raise RyoError("tool result was not an object", code="bad_shape")
+    return {
+        "ok": True,
+        "stale": False,
+        "tool": tool,
+        "arguments": arguments,
+        "fetched_at": time.time(),
+        "rate_limit": {
+            "limit": hdrs.get("x-ratelimit-limit"),
+            "remaining": hdrs.get("x-ratelimit-remaining"),
+            "reset": hdrs.get("x-ratelimit-reset"),
+        },
+        "result": result,
+    }
+
+
+async def _fetch_once(client: httpx.AsyncClient, tool: str, arguments: dict[str, Any], key: str) -> dict[str, Any]:
+    """Concurrent callers for the same key share one RYO request."""
+    future = _INFLIGHT.get(key)
+    if future is None:
+        future = asyncio.ensure_future(_fetch(client, tool, arguments))
+        _INFLIGHT[key] = future
+        future.add_done_callback(lambda _f: _INFLIGHT.pop(key, None))
+    return await asyncio.shield(future)
 
 
 async def call_tool(
@@ -181,45 +266,28 @@ async def call_tool(
     allow_stale: bool = True,
     force: bool = False,
 ) -> dict[str, Any]:
-    """Fresh for RYO_CACHE_TTL. Older last-good is served while a refresh runs."""
+    """Fresh for RYO_CACHE_TTL. Older last-good is served while a refresh runs.
+
+    A failed or degraded reply never replaces last-good data: the last-good envelope is
+    returned with stale=True (up to RYO_LASTGOOD_TTL old), and the reply is not cached.
+    """
     arguments = arguments or {}
     key = _cache_key(tool, arguments)
     cached = None if force else _lookup(key)
-    if cached and cached.get("ok") and cached.get("result") is not None:
+    if _is_good(cached):
         age = _age(cached)
         if age < config.RYO_CACHE_TTL:
             return cached
         if age < config.RYO_SWR_TTL:
             _kick_refresh(client, tool, arguments, key)
             return {**cached, "stale": True}
+
+    good = _last_good(key) if allow_stale else None
     try:
-        payload, hdrs = await _request(client, "POST", f"/tools/{tool}/call", json_body=arguments)
-        result = payload.get("result", payload)
-        if not isinstance(result, dict):
-            raise RyoError("tool result was not an object", code="bad_shape")
-        envelope = {
-            "ok": True,
-            "stale": False,
-            "tool": tool,
-            "arguments": arguments,
-            "fetched_at": time.time(),
-            "rate_limit": {
-                "limit": hdrs.get("x-ratelimit-limit"),
-                "remaining": hdrs.get("x-ratelimit-remaining"),
-                "reset": hdrs.get("x-ratelimit-reset"),
-            },
-            "result": result,
-        }
-        return _remember(key, envelope)
+        envelope = await _fetch_once(client, tool, arguments, key)
     except RyoError as exc:
-        cached = _lookup(key) if allow_stale else None
-        if cached:
-            return {
-                **cached,
-                "ok": False,
-                "stale": True,
-                "error": {"message": str(exc), "code": exc.code, "status": exc.status, "trace": exc.trace},
-            }
+        if good:
+            return _serve_last_good(good, str(exc), exc.code or "error", exc.status, exc.trace)
         return {
             "ok": False,
             "stale": False,
@@ -229,3 +297,11 @@ async def call_tool(
             "error": {"message": str(exc), "code": exc.code, "status": exc.status, "trace": exc.trace},
             "result": None,
         }
+
+    result = envelope["result"]
+    if good and _downgrade(result, good["result"]):
+        headline = (result.get("summary") or {}).get("headline") if isinstance(result.get("summary"), dict) else result.get("summary")
+        return _serve_last_good(good, str(headline or f"RYO returned {_status(result)}"), "upstream_degraded")
+    if _status(result) == "unavailable":
+        return envelope  # shown as blank, never cached
+    return _remember(key, envelope)
