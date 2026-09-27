@@ -253,7 +253,8 @@ async def load_ryo_whoami() -> dict[str, Any]:
 
 
 def _annotate_heat(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    vmax = max((r.get("volume") or 0) for r in rows) or 1
+    # default=0: an unavailable scan returns no rows; max() of nothing would 500 the screener.
+    vmax = max(((r.get("volume") or 0) for r in rows), default=0) or 1
     for row in rows:
         vol = row.get("volume") or 0
         row["heat_flex"] = max(1.0, 1.0 + 3.0 * (vol / vmax))
